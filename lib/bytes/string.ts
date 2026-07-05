@@ -76,8 +76,8 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 */
 	public readonly sizer: Codec<number>;
 
-	private readonly encoder = new TextEncoder();
-	private readonly decoder = new TextDecoder();
+	private readonly textEncoder = new TextEncoder();
+	private readonly textDecoder = new TextDecoder();
 
 	constructor(options?: O) {
 		super();
@@ -94,10 +94,10 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 *   `this.sizer`, then appends the UTF-8 bytes.
 	 *
 	 * @param value - The string to encode.
-	 * @param target - Optional pre-allocated buffer to write into. Must be
-	 *   large enough to hold the result; surplus bytes are left unchanged.
-	 *   A new `Uint8Array` is allocated when omitted.
-	 * @returns The encoded bytes (either `target` or a newly allocated buffer).
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer large enough to hold the result to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 * @throws {RangeError} In fixed mode, if the UTF-8 byte length of `value`
 	 *   does not equal `options.size`.
 	 *
@@ -108,41 +108,34 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 * codec.encode("hi");    // throws RangeError
 	 * ```
 	 */
-	public encode(value: string): Uint8Array<ArrayBuffer> {
-		const utf8 = this.encoder.encode(value);
+	public encoder(value: string, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: string, target: Uint8Array, offset: number): number;
+	public encoder(value: string, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		const utf8 = this.textEncoder.encode(value);
 		if (this.stride.kind === "fixed") {
 			if (utf8.length !== this.stride.size) {
 				throw new RangeError(
 					`Expected UTF-8 byte length of ${this.stride.size}, got ${utf8.length}`,
 				);
 			}
-			return utf8;
-		}
-		const prefix = this.sizer.encode(utf8.length);
-		const result = new Uint8Array(prefix.length + utf8.length);
-		result.set(prefix);
-		result.set(utf8, prefix.length);
-		return result;
-	}
-
-	public override encodeInto(value: string, target: Uint8Array, offset: number = 0): number {
-		const utf8 = this.encoder.encode(value);
-		if (this.stride.kind === "fixed") {
-			if (utf8.length !== this.stride.size) {
-				throw new RangeError(
-					`Expected UTF-8 byte length of ${this.stride.size}, got ${utf8.length}`,
-				);
-			}
-			target.set(utf8, offset);
+			if (target === undefined) return utf8;
+			target.set(utf8, offset!);
 			return this.stride.size;
 		}
-		const prefixSize = this.sizer.encodeInto(utf8.length, target, offset);
-		target.set(utf8, offset + prefixSize);
+		if (target === undefined) {
+			const prefix = this.sizer.encode(utf8.length);
+			const result = new Uint8Array(prefix.length + utf8.length);
+			result.set(prefix);
+			result.set(utf8, prefix.length);
+			return result;
+		}
+		const prefixSize = this.sizer.encodeInto(utf8.length, target, offset!);
+		target.set(utf8, offset! + prefixSize);
 		return prefixSize + utf8.length;
 	}
 
 	/**
-	 * Decodes a string from the beginning of `data`.
+	 * Decodes a string starting at `offset` within `data`.
 	 *
 	 * - **Fixed mode** — reads exactly `options.size` bytes and UTF-8 decodes
 	 *   them. Returns a zero-copy subarray view into `data`.
@@ -151,9 +144,10 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 *
 	 * @param data - Source buffer to read from. May contain trailing bytes
 	 *   beyond the encoded value; they are ignored.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple `[value, consumed]` where `value` is the decoded string
 	 *   and `consumed` is the total number of bytes read (prefix + payload).
-	 * @throws {RangeError} In fixed mode, if `data.length < options.size`.
+	 * @throws {RangeError} In fixed mode, if `data.length - offset < options.size`.
 	 *
 	 * @example
 	 * ```ts
@@ -162,19 +156,19 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 * // str === "hi", n === 2
 	 * ```
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [string, number] {
+	public decoder(data: Uint8Array, offset: number): [string, number] {
 		if (this.stride.kind === "fixed") {
 			if (data.length - offset < this.stride.size) {
 				throw new RangeError(
 					`Expected at least ${this.stride.size} bytes, got ${data.length - offset}`,
 				);
 			}
-			return [this.decoder.decode(data.subarray(offset, offset + this.stride.size)), this.stride.size];
+			return [this.textDecoder.decode(data.subarray(offset, offset + this.stride.size)), this.stride.size];
 		}
 
-		const [length, bytesRead] = this.sizer.decodeFrom(data, offset);
+		const [length, bytesRead] = this.sizer.decode(data, offset);
 		const utf8 = data.subarray(offset + bytesRead, offset + bytesRead + length);
-		return [this.decoder.decode(utf8), bytesRead + length];
+		return [this.textDecoder.decode(utf8), bytesRead + length];
 	}
 }
 

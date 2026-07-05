@@ -102,8 +102,10 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 	 * Writes the variant index followed by the encoded payload.
 	 *
 	 * @param value - Object with a `kind` discriminant and matching `value`.
-	 * @param target - Optional pre-allocated buffer to write into.
-	 * @returns The encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 *
 	 * @throws {Error} If `value.kind` is not a registered variant key.
 	 *   Message: `"Invalid union variant: <kind>"`.
@@ -111,26 +113,23 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 	 * @example
 	 * const bytes = codec.encode({ kind: "Quit", value: null });
 	 */
-	public encode(value: EnumInput<T>): Uint8Array<ArrayBuffer> {
+	public encoder(value: EnumInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: EnumInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: EnumInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		const index = this.keys.indexOf(value.kind);
 		if (index === -1) {
 			throw new Error(`Invalid union variant: ${String(value.kind)}`);
 		}
-		const indexBytes = this.indexer.encode(index);
-		const payload = this.variants[value.kind]!.encode(value.value as never);
-		const result = new Uint8Array(indexBytes.length + payload.length);
-		result.set(indexBytes);
-		result.set(payload, indexBytes.length);
-		return result;
-	}
-
-	public override encodeInto(value: EnumInput<T>, target: Uint8Array, offset: number = 0): number {
-		const index = this.keys.indexOf(value.kind);
-		if (index === -1) {
-			throw new Error(`Invalid union variant: ${String(value.kind)}`);
+		if (target === undefined) {
+			const indexBytes = this.indexer.encode(index);
+			const payload = this.variants[value.kind]!.encode(value.value as never);
+			const result = new Uint8Array(indexBytes.length + payload.length);
+			result.set(indexBytes);
+			result.set(payload, indexBytes.length);
+			return result;
 		}
-		const indexSize = this.indexer.encodeInto(index, target, offset);
-		return indexSize + this.variants[value.kind]!.encodeInto(value.value as never, target, offset + indexSize);
+		const indexSize = this.indexer.encodeInto(index, target, offset!);
+		return indexSize + this.variants[value.kind]!.encodeInto(value.value as never, target, offset! + indexSize);
 	}
 
 	/**
@@ -140,6 +139,7 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 	 * the payload.
 	 *
 	 * @param data - Byte array to decode from.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[{ kind, value }, bytes consumed]`.
 	 *
 	 * @throws {Error} If the decoded index is out of range.
@@ -149,14 +149,14 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 	 * const [shape, bytesRead] = ShapeCodec.decode(bytes);
 	 * if (shape.kind === "Circle") { ... }
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [EnumOutput<T>, number] {
-		const [index, indexSize] = this.indexer.decodeFrom(data, offset);
+	public decoder(data: Uint8Array, offset: number): [EnumOutput<T>, number] {
+		const [index, indexSize] = this.indexer.decode(data, offset);
 		if (index >= this.keys.length) {
 			throw new Error(`Invalid union index: ${index}`);
 		}
 		const key = this.keys[index]!;
 		const codec = this.variants[key]!;
-		const [value, size] = codec.decodeFrom(data, offset + indexSize);
+		const [value, size] = codec.decode(data, offset + indexSize);
 		return [{ kind: key, value } as never, indexSize + size];
 	}
 }

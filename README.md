@@ -53,13 +53,15 @@ const [decoded] = User.decode(bytes);
 
 All codecs extend `Codec<O, I>` and implement:
 
-| Member   | Signature                                       | Description                                                         |
-| -------- | ----------------------------------------------- | ------------------------------------------------------------------- |
-| `encode` | `(value: I, target?: Uint8Array) => Uint8Array` | Encode a value. Pass `target` to write into a pre-allocated buffer. |
-| `decode` | `(data: Uint8Array) => [O, number]`             | Decode and return `[value, bytesConsumed]`.                         |
-| `stride` | `Stride`                                        | `{ kind: "fixed"; size: number }` or `{ kind: "variable" }`.        |
+| Member       | Signature                                                   | Description                                                     |
+| ------------ | ----------------------------------------------------------- | --------------------------------------------------------------- |
+| `encode`     | `(value: I) => Uint8Array`                                  | Encode a value into a newly allocated buffer.                   |
+| `encodeInto` | `(value: I, target: Uint8Array, offset?: number) => number` | Encode a value in place into `target`, returning bytes written. |
+| `decode`     | `(data: Uint8Array, offset?: number) => [O, number]`        | Decode and return `[value, bytesConsumed]`.                     |
+| `stride`     | `Stride`                                                    | `{ kind: "fixed"; size: number }` or `{ kind: "variable" }`.    |
 
-The optional `target` parameter on `encode` lets you write into a pre-allocated `Uint8Array` for performance-sensitive code, avoiding an extra allocation.
+`encodeInto` lets you write into a pre-allocated `Uint8Array` for performance-sensitive code, avoiding an extra allocation. `decode` accepts an `offset` to
+start decoding from a position other than the start of the buffer.
 
 ### Type Inference
 
@@ -449,36 +451,46 @@ const RichPoint = Point.transform((p, bytes) => ({
 
 ## Custom Codecs
 
-Extend `Codec<O, I>` for variable-size codecs, or extend `FixedCodec<O, I>` for fixed-size codecs. When extending `FixedCodec`, `stride` is just a number
-(`FixedCodec` narrows the `stride` type to `{ kind: "fixed"; size: number }`).
+Extend `Codec<O, I>` and implement the abstract `stride`, `encoder`, and `decoder` members. For fixed-size codecs, also declare `implements FixedCodec<O, I>` so
+TypeScript checks that `stride` is `{ kind: "fixed"; size: number }`.
+
+Subclasses implement `encoder`/`decoder` instead of `encode`/`decode` directly — the base `Codec` class provides `encode`, `encodeInto`, and `decode` for you,
+all delegating to these two primitives. `encoder` is overloaded: called with `target`/`offset` both `undefined` it must allocate and return a new `Uint8Array`;
+called with a `target` buffer and numeric `offset` it must write in place and return the number of bytes written.
 
 ```ts
-import { Codec, FixedCodec, Stride, U64 } from "@nomadshiba/codec";
+import { Codec, type FixedCodec, type Stride, U64 } from "@nomadshiba/codec";
 
 // Variable-size codec — extend Codec directly
 class PascalStringCodec extends Codec<string> {
 	readonly stride: Stride<"variable"> = { kind: "variable" };
 
-	encode(value: string, target?: Uint8Array): Uint8Array {
+	encoder(value: string, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	encoder(value: string, target: Uint8Array, offset: number): number;
+	encoder(value: string, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		// ...
 	}
 
-	decode(data: Uint8Array): [string, number] {
+	decoder(data: Uint8Array, offset: number): [string, number] {
 		// ...
 	}
 }
 
-// Fixed-size codec — extend FixedCodec
-class DateCodec extends FixedCodec<Date, bigint> {
-	readonly stride = 8;
+// Fixed-size codec — implement FixedCodec by narrowing `stride`
+class DateCodec extends Codec<Date, Date | bigint> implements FixedCodec<Date, Date | bigint> {
+	readonly stride: Stride<"fixed"> = { kind: "fixed", size: 8 };
 
-	encode(ms: bigint, target?: Uint8Array): Uint8Array {
-		return U64.encode(ms, target);
+	encoder(value: Date | bigint, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	encoder(value: Date | bigint, target: Uint8Array, offset: number): number;
+	encoder(value: Date | bigint, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		const ms = typeof value === "bigint" ? value : BigInt(value.getTime());
+		if (target === undefined) return U64.encode(ms);
+		return U64.encodeInto(ms, target, offset);
 	}
 
-	decode(data: Uint8Array): [Date, number] {
-		const [ms] = U64.decode(data);
-		return [new Date(Number(ms)), 8];
+	decoder(data: Uint8Array, offset: number): [Date, number] {
+		const [ms, size] = U64.decode(data, offset);
+		return [new Date(Number(ms)), size];
 	}
 }
 ```

@@ -26,30 +26,34 @@ export class I8Codec extends Codec<number> {
 	public readonly stride: Stride<"fixed"> = { kind: "fixed", size: 1 };
 
 	/**
-	 * Encodes a signed 8-bit integer into a `Uint8Array`.
+	 * Encodes a signed 8-bit integer.
 	 *
 	 * @param value - Integer in the range [-128, 127].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 1 byte.
-	 * @returns The buffer containing the encoded byte.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 1 byte available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`1`).
 	 */
-	public encode(value: number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(1);
-		new DataView(arr.buffer).setInt8(0, value);
-		return arr;
-	}
-
-	public override encodeInto(value: number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 1).setInt8(0, value);
+	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number, target: Uint8Array, offset: number): number;
+	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(1);
+			new DataView(arr.buffer).setInt8(0, value);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 1).setInt8(0, value);
 		return 1;
 	}
 
 	/**
-	 * Decodes a signed 8-bit integer from the start of `data`.
+	 * Decodes a signed 8-bit integer starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 1 byte.
+	 * @param data - Buffer to read from. Must have at least 1 byte available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `1`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -78,30 +82,34 @@ export class U8Codec extends Codec<number> {
 	public readonly stride: Stride<"fixed"> = { kind: "fixed", size: 1 };
 
 	/**
-	 * Encodes an unsigned 8-bit integer into a `Uint8Array`.
+	 * Encodes an unsigned 8-bit integer.
 	 *
 	 * @param value - Integer in the range [0, 255].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 1 byte.
-	 * @returns The buffer containing the encoded byte.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 1 byte available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`1`).
 	 */
-	public encode(value: number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(1);
-		new DataView(arr.buffer).setUint8(0, value);
-		return arr;
-	}
-
-	public override encodeInto(value: number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 1).setUint8(0, value);
+	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number, target: Uint8Array, offset: number): number;
+	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(1);
+			new DataView(arr.buffer).setUint8(0, value);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 1).setUint8(0, value);
 		return 1;
 	}
 
 	/**
-	 * Decodes an unsigned 8-bit integer from the start of `data`.
+	 * Decodes an unsigned 8-bit integer starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 1 byte.
+	 * @param data - Buffer to read from. Must have at least 1 byte available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `1`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -141,30 +149,34 @@ export class I16Codec extends Codec<number> {
 	}
 
 	/**
-	 * Encodes a signed 16-bit integer into a `Uint8Array`.
+	 * Encodes a signed 16-bit integer.
 	 *
 	 * @param value - Integer in the range [-32768, 32767].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 2 bytes.
-	 * @returns The buffer containing the encoded 2 bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 2 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`2`).
 	 */
-	public encode(value: number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(2);
-		new DataView(arr.buffer).setInt16(0, value, this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 2).setInt16(0, value, this.littleEndian);
+	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number, target: Uint8Array, offset: number): number;
+	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(2);
+			new DataView(arr.buffer).setInt16(0, value, this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 2).setInt16(0, value, this.littleEndian);
 		return 2;
 	}
 
 	/**
-	 * Decodes a signed 16-bit integer from the start of `data`.
+	 * Decodes a signed 16-bit integer starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 2 bytes.
+	 * @param data - Buffer to read from. Must have at least 2 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `2`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -204,30 +216,34 @@ export class U16Codec extends Codec<number> {
 	}
 
 	/**
-	 * Encodes an unsigned 16-bit integer into a `Uint8Array`.
+	 * Encodes an unsigned 16-bit integer.
 	 *
 	 * @param value - Integer in the range [0, 65535].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 2 bytes.
-	 * @returns The buffer containing the encoded 2 bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 2 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`2`).
 	 */
-	public encode(value: number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(2);
-		new DataView(arr.buffer).setUint16(0, value, this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 2).setUint16(0, value, this.littleEndian);
+	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number, target: Uint8Array, offset: number): number;
+	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(2);
+			new DataView(arr.buffer).setUint16(0, value, this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 2).setUint16(0, value, this.littleEndian);
 		return 2;
 	}
 
 	/**
-	 * Decodes an unsigned 16-bit integer from the start of `data`.
+	 * Decodes an unsigned 16-bit integer starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 2 bytes.
+	 * @param data - Buffer to read from. Must have at least 2 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `2`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -266,30 +282,34 @@ export class I32Codec extends Codec<number> {
 	}
 
 	/**
-	 * Encodes a signed 32-bit integer into a `Uint8Array`.
+	 * Encodes a signed 32-bit integer.
 	 *
 	 * @param value - Integer in the range [-2147483648, 2147483647].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 4 bytes.
-	 * @returns The buffer containing the encoded 4 bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 4 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`4`).
 	 */
-	public encode(value: number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(4);
-		new DataView(arr.buffer).setInt32(0, value, this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 4).setInt32(0, value, this.littleEndian);
+	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number, target: Uint8Array, offset: number): number;
+	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(4);
+			new DataView(arr.buffer).setInt32(0, value, this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 4).setInt32(0, value, this.littleEndian);
 		return 4;
 	}
 
 	/**
-	 * Decodes a signed 32-bit integer from the start of `data`.
+	 * Decodes a signed 32-bit integer starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 4 bytes.
+	 * @param data - Buffer to read from. Must have at least 4 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `4`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -328,30 +348,34 @@ export class U32Codec extends Codec<number> {
 	}
 
 	/**
-	 * Encodes an unsigned 32-bit integer into a `Uint8Array`.
+	 * Encodes an unsigned 32-bit integer.
 	 *
 	 * @param value - Integer in the range [0, 4294967295].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 4 bytes.
-	 * @returns The buffer containing the encoded 4 bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 4 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`4`).
 	 */
-	public encode(value: number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(4);
-		new DataView(arr.buffer).setUint32(0, value, this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 4).setUint32(0, value, this.littleEndian);
+	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number, target: Uint8Array, offset: number): number;
+	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(4);
+			new DataView(arr.buffer).setUint32(0, value, this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 4).setUint32(0, value, this.littleEndian);
 		return 4;
 	}
 
 	/**
-	 * Decodes an unsigned 32-bit integer from the start of `data`.
+	 * Decodes an unsigned 32-bit integer starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 4 bytes.
+	 * @param data - Buffer to read from. Must have at least 4 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `4`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -390,30 +414,34 @@ export class I64Codec extends Codec<bigint, bigint | number> {
 	}
 
 	/**
-	 * Encodes a signed 64-bit `bigint` into a `Uint8Array`.
+	 * Encodes a signed 64-bit `bigint`.
 	 *
-	 * @param value - `bigint` in the range [-2^63, 2^63 - 1].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 8 bytes.
-	 * @returns The buffer containing the encoded 8 bytes.
+	 * @param value - `bigint` (or `number`) in the range [-2^63, 2^63 - 1].
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 8 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`8`).
 	 */
-	public encode(value: bigint | number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(8);
-		new DataView(arr.buffer).setBigInt64(0, BigInt(value), this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: bigint | number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 8).setBigInt64(0, BigInt(value), this.littleEndian);
+	public encoder(value: bigint | number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: bigint | number, target: Uint8Array, offset: number): number;
+	public encoder(value: bigint | number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(8);
+			new DataView(arr.buffer).setBigInt64(0, BigInt(value), this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 8).setBigInt64(0, BigInt(value), this.littleEndian);
 		return 8;
 	}
 
 	/**
-	 * Decodes a signed 64-bit `bigint` from the start of `data`.
+	 * Decodes a signed 64-bit `bigint` starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 8 bytes.
+	 * @param data - Buffer to read from. Must have at least 8 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `8`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [bigint, number] {
+	public decoder(data: Uint8Array, offset: number): [bigint, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -452,30 +480,34 @@ export class U64Codec extends Codec<bigint, bigint | number> {
 	}
 
 	/**
-	 * Encodes an unsigned 64-bit `bigint` into a `Uint8Array`.
+	 * Encodes an unsigned 64-bit `bigint`.
 	 *
-	 * @param value - `bigint` in the range [0, 2^64 - 1].
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 8 bytes.
-	 * @returns The buffer containing the encoded 8 bytes.
+	 * @param value - `bigint` (or `number`) in the range [0, 2^64 - 1].
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 8 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`8`).
 	 */
-	public encode(value: bigint | number): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(8);
-		new DataView(arr.buffer).setBigUint64(0, BigInt(value), this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: bigint | number, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 8).setBigUint64(0, BigInt(value), this.littleEndian);
+	public encoder(value: bigint | number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: bigint | number, target: Uint8Array, offset: number): number;
+	public encoder(value: bigint | number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(8);
+			new DataView(arr.buffer).setBigUint64(0, BigInt(value), this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 8).setBigUint64(0, BigInt(value), this.littleEndian);
 		return 8;
 	}
 
 	/**
-	 * Decodes an unsigned 64-bit `bigint` from the start of `data`.
+	 * Decodes an unsigned 64-bit `bigint` starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 8 bytes.
+	 * @param data - Buffer to read from. Must have at least 8 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `8`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [bigint, number] {
+	public decoder(data: Uint8Array, offset: number): [bigint, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -514,30 +546,34 @@ export class F32Codec extends Codec<number, number | bigint> {
 	}
 
 	/**
-	 * Encodes a 32-bit float into a `Uint8Array`.
+	 * Encodes a 32-bit float.
 	 *
 	 * @param value - The number to encode. Precision may be lost (float32 ~7 significant digits).
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 4 bytes.
-	 * @returns The buffer containing the encoded 4 bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 4 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`4`).
 	 */
-	public encode(value: number | bigint): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(4);
-		new DataView(arr.buffer).setFloat32(0, Number(value), this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: number | bigint, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 4).setFloat32(0, Number(value), this.littleEndian);
+	public encoder(value: number | bigint, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number | bigint, target: Uint8Array, offset: number): number;
+	public encoder(value: number | bigint, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(4);
+			new DataView(arr.buffer).setFloat32(0, Number(value), this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 4).setFloat32(0, Number(value), this.littleEndian);
 		return 4;
 	}
 
 	/**
-	 * Decodes a 32-bit float from the start of `data`.
+	 * Decodes a 32-bit float starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 4 bytes.
+	 * @param data - Buffer to read from. Must have at least 4 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `4`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -576,30 +612,34 @@ export class F64Codec extends Codec<number, number | bigint> {
 	}
 
 	/**
-	 * Encodes a 64-bit double into a `Uint8Array`.
+	 * Encodes a 64-bit double.
 	 *
 	 * @param value - Any JavaScript `number` (full double precision).
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 8 bytes.
-	 * @returns The buffer containing the encoded 8 bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 8 bytes available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`8`).
 	 */
-	public encode(value: number | bigint): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(8);
-		new DataView(arr.buffer).setFloat64(0, Number(value), this.littleEndian);
-		return arr;
-	}
-
-	public override encodeInto(value: number | bigint, target: Uint8Array, offset: number = 0): number {
-		new DataView(target.buffer, target.byteOffset + offset, 8).setFloat64(0, Number(value), this.littleEndian);
+	public encoder(value: number | bigint, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number | bigint, target: Uint8Array, offset: number): number;
+	public encoder(value: number | bigint, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(8);
+			new DataView(arr.buffer).setFloat64(0, Number(value), this.littleEndian);
+			return arr;
+		}
+		new DataView(target.buffer, target.byteOffset + offset!, 8).setFloat64(0, Number(value), this.littleEndian);
 		return 8;
 	}
 
 	/**
-	 * Decodes a 64-bit double from the start of `data`.
+	 * Decodes a 64-bit double starting at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 8 bytes.
+	 * @param data - Buffer to read from. Must have at least 8 bytes available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `8`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		const view = new DataView(
 			data.buffer,
 			data.byteOffset + offset,
@@ -633,28 +673,32 @@ export class BoolCodec extends Codec<boolean> {
 	 * Encodes a boolean into a single byte.
 	 *
 	 * @param value - `true` → `0x01`, `false` → `0x00`.
-	 * @param target - Optional pre-allocated buffer to write into. Must have at least 1 byte.
-	 * @returns The buffer containing the encoded byte.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer with at least 1 byte available at `offset` to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`1`).
 	 */
-	public encode(value: boolean): Uint8Array<ArrayBuffer> {
-		const arr = new Uint8Array(1);
-		arr[0] = value ? 1 : 0;
-		return arr;
-	}
-
-	public override encodeInto(value: boolean, target: Uint8Array, offset: number = 0): number {
-		target[offset] = value ? 1 : 0;
+	public encoder(value: boolean, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: boolean, target: Uint8Array, offset: number): number;
+	public encoder(value: boolean, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const arr = new Uint8Array(1);
+			arr[0] = value ? 1 : 0;
+			return arr;
+		}
+		target[offset!] = value ? 1 : 0;
 		return 1;
 	}
 
 	/**
-	 * Decodes a boolean from the first byte of `data`.
+	 * Decodes a boolean from the byte at `offset`.
 	 *
-	 * @param data - Buffer to read from. Must have at least 1 byte.
+	 * @param data - Buffer to read from. Must have at least 1 byte available at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]` where `bytesConsumed` is always `1`.
 	 *          Any non-zero byte yields `true`.
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [boolean, number] {
+	public decoder(data: Uint8Array, offset: number): [boolean, number] {
 		return [data[offset] !== 0, 1];
 	}
 }
@@ -722,17 +766,17 @@ export class VoidCodec extends Codec<void, null | undefined | void> {
 	public override readonly stride: Stride<"fixed"> = { kind: "fixed", size: 0 };
 
 	/**
-	 * No-op encode — returns `target` unchanged (or an empty `Uint8Array`).
+	 * No-op encode — writes nothing.
 	 *
 	 * @param _value - Ignored. Accepts `void`, `null`, or `undefined`.
-	 * @param target - Optional buffer. Returned as-is when provided.
-	 * @returns An empty (zero-length) `Uint8Array`, or `target` if supplied.
+	 * @param target - Omit (along with `offset`) to receive a new empty (zero-length) `Uint8Array`.
+	 * @param offset - Ignored when `target` is provided.
+	 * @returns An empty `Uint8Array` when `target` is omitted, otherwise `0` (bytes written).
 	 */
-	public override encode(_value: void | null | undefined): Uint8Array<ArrayBuffer> {
-		return new Uint8Array(0);
-	}
-
-	public override encodeInto(_value: void | null | undefined, _target: Uint8Array, _offset: number = 0): number {
+	public override encoder(value: void | null | undefined, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public override encoder(value: void | null | undefined, target: Uint8Array, offset: number): number;
+	public override encoder(_value: void | null | undefined, target?: Uint8Array, _offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) return new Uint8Array(0);
 		return 0;
 	}
 
@@ -740,9 +784,10 @@ export class VoidCodec extends Codec<void, null | undefined | void> {
 	 * No-op decode — always returns `undefined` consuming 0 bytes.
 	 *
 	 * @param _data - Ignored.
+	 * @param _offset - Ignored.
 	 * @returns Tuple `[undefined, 0]`.
 	 */
-	public override decodeFrom(_data: Uint8Array, _offset: number): [void, number] {
+	public override decoder(_data: Uint8Array, _offset: number): [void, number] {
 		return [void 0, 0];
 	}
 }

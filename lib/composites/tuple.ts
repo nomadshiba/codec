@@ -80,20 +80,33 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 	 * results are concatenated.
 	 *
 	 * @param value - Tuple of values to encode. Must match the codec's arity.
-	 * @param target - Optional pre-allocated buffer to write into.
-	 * @returns The encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 *
 	 * @example
 	 * const bytes = RgbCodec.encode([0, 255, 0]);
 	 */
-	public encode(value: TupleInput<T>): Uint8Array<ArrayBuffer> {
-		if (this.stride.kind === "fixed") {
-			const bytes = new Uint8Array(this.stride.size);
-			let offset = 0;
+	public encoder(value: TupleInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: TupleInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: TupleInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target !== undefined) {
+			let size = 0;
 			for (let i = 0; i < this.items.length; i++) {
 				const item = this.items[i]!;
 				const itemValue = value[i]!;
-				offset += item.encodeInto(itemValue, bytes, offset);
+				size += item.encodeInto(itemValue, target, offset! + size);
+			}
+			return size;
+		}
+		if (this.stride.kind === "fixed") {
+			const bytes = new Uint8Array(this.stride.size);
+			let bytesOffset = 0;
+			for (let i = 0; i < this.items.length; i++) {
+				const item = this.items[i]!;
+				const itemValue = value[i]!;
+				bytesOffset += item.encodeInto(itemValue, bytes, bytesOffset);
 			}
 			return bytes;
 		}
@@ -106,16 +119,6 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 		return concat(parts);
 	}
 
-	public override encodeInto(value: TupleInput<T>, target: Uint8Array, offset: number = 0): number {
-		let size = 0;
-		for (let i = 0; i < this.items.length; i++) {
-			const item = this.items[i]!;
-			const itemValue = value[i]!;
-			size += item.encodeInto(itemValue, target, offset + size);
-		}
-		return size;
-	}
-
 	/**
 	 * Decodes bytes into a tuple of values.
 	 *
@@ -123,17 +126,18 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 	 * advancing the read offset after each element.
 	 *
 	 * @param data - Byte array to decode from.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[decoded values array, bytes consumed]`.
 	 *
 	 * @example
 	 * const [[r, g, b], bytesRead] = RgbCodec.decode(bytes);
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [TupleOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [TupleOutput<T>, number] {
 		const values = new Array<unknown>(this.items.length) as TupleOutput<T>;
 		let currentOffset = offset;
 		for (let i = 0; i < this.items.length; i++) {
 			const item = this.items[i]!;
-			const [value, size] = item.decodeFrom(data, currentOffset);
+			const [value, size] = item.decode(data, currentOffset);
 			values[i] = value;
 			currentOffset += size;
 		}

@@ -92,10 +92,10 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 *   `this.sizer`, then appends `value`.
 	 *
 	 * @param value - The byte array to encode.
-	 * @param target - Optional pre-allocated buffer to write into. Must be
-	 *   large enough to hold the result; surplus bytes are left unchanged.
-	 *   A new `Uint8Array` is allocated when omitted.
-	 * @returns The encoded bytes (either `target` or a newly allocated buffer).
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer large enough to hold the result to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 * @throws {RangeError} In fixed mode, if `value.length !== options.size`.
 	 *
 	 * @example
@@ -105,41 +105,37 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 * codec.encode(new Uint8Array([1, 2]));        // throws RangeError
 	 * ```
 	 */
-	public encode(value: Uint8Array): Uint8Array<ArrayBuffer> {
+	public encoder(value: Uint8Array, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: Uint8Array, target: Uint8Array, offset: number): number;
+	public encoder(value: Uint8Array, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (this.stride.kind === "fixed") {
 			if (value.length !== this.stride.size) {
 				throw new RangeError(
 					`Expected byte array of length ${this.stride.size}, got ${value.length}`,
 				);
 			}
-			const result = new Uint8Array(this.stride.size);
-			result.set(value);
-			return result;
-		}
-		const prefix = this.sizer.encode(value.length);
-		const result = new Uint8Array(prefix.length + value.length);
-		result.set(prefix);
-		result.set(value, prefix.length);
-		return result;
-	}
-
-	public override encodeInto(value: Uint8Array, target: Uint8Array, offset: number = 0): number {
-		if (this.stride.kind === "fixed") {
-			if (value.length !== this.stride.size) {
-				throw new RangeError(
-					`Expected byte array of length ${this.stride.size}, got ${value.length}`,
-				);
+			if (target === undefined) {
+				const result = new Uint8Array(this.stride.size);
+				result.set(value);
+				return result;
 			}
-			target.set(value, offset);
+			target.set(value, offset!);
 			return this.stride.size;
 		}
-		const prefixSize = this.sizer.encodeInto(value.length, target, offset);
-		target.set(value, offset + prefixSize);
+		if (target === undefined) {
+			const prefix = this.sizer.encode(value.length);
+			const result = new Uint8Array(prefix.length + value.length);
+			result.set(prefix);
+			result.set(value, prefix.length);
+			return result;
+		}
+		const prefixSize = this.sizer.encodeInto(value.length, target, offset!);
+		target.set(value, offset! + prefixSize);
 		return prefixSize + value.length;
 	}
 
 	/**
-	 * Decodes a `Uint8Array` from the beginning of `data`.
+	 * Decodes a `Uint8Array` starting at `offset` within `data`.
 	 *
 	 * - **Fixed mode** — returns a zero-copy subarray of the first
 	 *   `options.size` bytes.
@@ -148,10 +144,11 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 *
 	 * @param data - Source buffer to read from. May contain trailing bytes
 	 *   beyond the encoded value; they are ignored.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple `[value, consumed]` where `value` is the decoded byte
 	 *   array (a subarray view into `data`) and `consumed` is the total number
 	 *   of bytes read (prefix + payload).
-	 * @throws {RangeError} In fixed mode, if `data.length < options.size`.
+	 * @throws {RangeError} In fixed mode, if `data.length - offset < options.size`.
 	 *
 	 * @example
 	 * ```ts
@@ -160,7 +157,7 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 * // value → Uint8Array [0xaa, 0xbb], n === 2
 	 * ```
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [Uint8Array, number] {
+	public decoder(data: Uint8Array, offset: number): [Uint8Array, number] {
 		if (this.stride.kind === "fixed") {
 			if (data.length - offset < this.stride.size) {
 				throw new RangeError(
@@ -169,7 +166,7 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 			}
 			return [data.subarray(offset, offset + this.stride.size), this.stride.size];
 		} else {
-			const [length, bytesRead] = this.sizer.decodeFrom(data, offset);
+			const [length, bytesRead] = this.sizer.decode(data, offset);
 			const decoded = data.subarray(offset + bytesRead, offset + bytesRead + length);
 			return [decoded, bytesRead + length];
 		}

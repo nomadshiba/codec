@@ -29,50 +29,51 @@ export class VarIntCodec extends Codec<number> {
 	 * Encodes a non-negative safe integer as a variable-length LEB128 byte sequence.
 	 *
 	 * @param value - Non-negative safe integer (`0 ≤ value ≤ Number.MAX_SAFE_INTEGER`).
-	 * @param target - Optional pre-allocated buffer. Must be large enough for the encoded output.
-	 * @returns `Uint8Array` containing the LEB128-encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer large enough for the encoded output to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 * @throws {RangeError} If `value` is negative or not a safe integer.
 	 *
 	 * @example
 	 * VarInt.encode(1)   // Uint8Array [0x01]  — 1 byte
 	 * VarInt.encode(128) // Uint8Array [0x80, 0x01] — 2 bytes
 	 */
-	public encode(value: number): Uint8Array<ArrayBuffer> {
+	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: number, target: Uint8Array, offset: number): number;
+	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (value < 0 || !Number.isSafeInteger(value)) {
 			throw new RangeError("Value must be a non-negative safe integer");
 		}
-		const parts: number[] = [];
-		while (value > 0x7F) {
-			parts.push((value & 0x7F) | 0x80);
-			value = Math.floor(value / 128);
+		if (target === undefined) {
+			const parts: number[] = [];
+			while (value > 0x7F) {
+				parts.push((value & 0x7F) | 0x80);
+				value = Math.floor(value / 128);
+			}
+			parts.push(value & 0x7F);
+			const result = new Uint8Array(parts.length);
+			result.set(parts);
+			return result;
 		}
-		parts.push(value & 0x7F);
-		const result = new Uint8Array(parts.length);
-		result.set(parts);
-		return result;
-	}
-
-	public override encodeInto(value: number, target: Uint8Array, offset: number = 0): number {
-		if (value < 0 || !Number.isSafeInteger(value)) {
-			throw new RangeError("Value must be a non-negative safe integer");
-		}
-		let i = offset;
+		let i = offset!;
 		while (value > 0x7F) {
 			target[i++] = (value & 0x7F) | 0x80;
 			value = Math.floor(value / 128);
 		}
 		target[i++] = value & 0x7F;
-		return i - offset;
+		return i - offset!;
 	}
 
 	/**
-	 * Decodes a variable-length LEB128 integer from the start of `data`.
+	 * Decodes a variable-length LEB128 integer starting at `offset`.
 	 *
 	 * Reads bytes until a byte with a clear MSB is encountered (end of varint).
 	 * At most 8 bytes are consumed before the 53-bit JS safe-integer limit is
 	 * reached; further bytes trigger a `RangeError`.
 	 *
-	 * @param data - Buffer to read from. Must contain at least one complete varint.
+	 * @param data - Buffer to read from. Must contain at least one complete varint starting at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]`.
 	 * @throws {RangeError} If the decoded value exceeds `Number.MAX_SAFE_INTEGER`.
 	 * @throws {RangeError} If the varint encoding is longer than 53 bits (corrupt data).
@@ -82,7 +83,7 @@ export class VarIntCodec extends Codec<number> {
 	 * VarInt.decode(new Uint8Array([0x01]))        // [1, 1]
 	 * VarInt.decode(new Uint8Array([0x80, 0x01]))  // [128, 2]
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8Array, offset: number): [number, number] {
 		let value = 0;
 		let shift = 0;
 		let bytesRead = 0;
@@ -143,7 +144,10 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 	 * Encodes a non-negative integer as a variable-length LEB128 byte sequence.
 	 *
 	 * @param value - Non-negative integer. A `number` is coerced to `bigint`.
-	 * @returns `Uint8Array` containing the LEB128-encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new buffer.
+	 *   Pass a buffer large enough for the encoded output to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 * @throws {RangeError} If `value` is negative.
 	 * @throws {RangeError} If `value` is a non-integer `number`.
 	 *
@@ -151,43 +155,41 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 	 * BigVarInt.encode(1n)   // Uint8Array [0x01]  — 1 byte
 	 * BigVarInt.encode(128n) // Uint8Array [0x80, 0x01] — 2 bytes
 	 */
-	public encode(value: bigint | number): Uint8Array<ArrayBuffer> {
+	public encoder(value: bigint | number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: bigint | number, target: Uint8Array, offset: number): number;
+	public encoder(value: bigint | number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		let v = BigInt(value);
 		if (v < 0n) {
 			throw new RangeError("Value must be a non-negative integer");
 		}
-		const parts: number[] = [];
-		while (v > 0x7Fn) {
-			parts.push(Number((v & 0x7Fn) | 0x80n));
-			v >>= 7n;
+		if (target === undefined) {
+			const parts: number[] = [];
+			while (v > 0x7Fn) {
+				parts.push(Number((v & 0x7Fn) | 0x80n));
+				v >>= 7n;
+			}
+			parts.push(Number(v & 0x7Fn));
+			const result = new Uint8Array(parts.length);
+			result.set(parts);
+			return result;
 		}
-		parts.push(Number(v & 0x7Fn));
-		const result = new Uint8Array(parts.length);
-		result.set(parts);
-		return result;
-	}
-
-	public override encodeInto(value: bigint | number, target: Uint8Array, offset: number = 0): number {
-		let v = BigInt(value);
-		if (v < 0n) {
-			throw new RangeError("Value must be a non-negative integer");
-		}
-		let i = offset;
+		let i = offset!;
 		while (v > 0x7Fn) {
 			target[i++] = Number((v & 0x7Fn) | 0x80n);
 			v >>= 7n;
 		}
 		target[i++] = Number(v & 0x7Fn);
-		return i - offset;
+		return i - offset!;
 	}
 
 	/**
-	 * Decodes a variable-length LEB128 integer from the start of `data`.
+	 * Decodes a variable-length LEB128 integer starting at `offset`.
 	 *
 	 * Reads bytes until a byte with a clear MSB is encountered (end of varint).
 	 * There is no length cap — the value grows as wide as the encoding requires.
 	 *
-	 * @param data - Buffer to read from. Must contain at least one complete varint.
+	 * @param data - Buffer to read from. Must contain at least one complete varint starting at `offset`.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns Tuple of `[value, bytesConsumed]`.
 	 * @throws {Error} If `data` ends before a terminating byte is found (`"Incomplete BigVarInt"`).
 	 *
@@ -195,7 +197,7 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 	 * BigVarInt.decode(new Uint8Array([0x01]))        // [1n, 1]
 	 * BigVarInt.decode(new Uint8Array([0x80, 0x01]))  // [128n, 2]
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [bigint, number] {
+	public decoder(data: Uint8Array, offset: number): [bigint, number] {
 		let value = 0n;
 		let shift = 0n;
 		let bytesRead = 0;

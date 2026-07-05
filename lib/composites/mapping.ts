@@ -82,31 +82,33 @@ export class MappingCodec<const T extends MappingGeneric> extends Codec<MappingO
 	 * Encodes a `Map` into a length-prefixed sequence of encoded key-value pairs.
 	 *
 	 * @param value - The `Map` to encode.
-	 * @param target - Optional pre-allocated buffer to write into.
-	 * @returns The encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 *
 	 * @example
 	 * const bytes = codec.encode(new Map([["a", 1]]));
 	 */
-	public encode(value: MappingInput<T>): Uint8Array<ArrayBuffer> {
-		return this.entriesCodec.encode(value.entries().toArray() as never);
-	}
-
-	public override encodeInto(value: MappingInput<T>, target: Uint8Array, offset: number = 0): number {
-		return this.entriesCodec.encodeInto(value.entries().toArray() as never, target, offset);
+	public encoder(value: MappingInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: MappingInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: MappingInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) return this.entriesCodec.encode(value.entries().toArray() as never);
+		return this.entriesCodec.encodeInto(value.entries().toArray() as never, target, offset!);
 	}
 
 	/**
 	 * Decodes a length-prefixed sequence of key-value pairs into a `Map`.
 	 *
 	 * @param data - Byte array to decode from.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[Map, bytes consumed]`.
 	 *
 	 * @example
 	 * const [map, bytesRead] = codec.decode(bytes);
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [MappingOutput<T>, number] {
-		const [entries, size] = this.entriesCodec.decodeFrom(data, offset);
+	public decoder(data: Uint8Array, offset: number): [MappingOutput<T>, number] {
+		const [entries, size] = this.entriesCodec.decode(data, offset);
 		return [new Map(entries), size];
 	}
 }

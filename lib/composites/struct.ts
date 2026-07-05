@@ -79,18 +79,19 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	 * underlying {@link TupleCodec}.
 	 *
 	 * @param value - Object whose values are encoded in field-declaration order.
-	 * @param target - Optional pre-allocated buffer to write into.
-	 * @returns The encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 *
 	 * @example
 	 * const bytes = PointCodec.encode({ x: 0, y: 1 });
 	 */
-	public encode(value: StructInput<T>): Uint8Array<ArrayBuffer> {
-		return this.tuple.encode(this.keys.map((key) => value[key]));
-	}
-
-	public override encodeInto(value: StructInput<T>, target: Uint8Array, offset: number = 0): number {
-		return this.tuple.encodeInto(this.keys.map((key) => value[key]), target, offset);
+	public encoder(value: StructInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: StructInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: StructInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) return this.tuple.encode(this.keys.map((key) => value[key]));
+		return this.tuple.encodeInto(this.keys.map((key) => value[key]), target, offset!);
 	}
 
 	/**
@@ -100,13 +101,14 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	 * mapped back to their named keys.
 	 *
 	 * @param data - Byte array to decode from.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[decoded struct object, bytes consumed]`.
 	 *
 	 * @example
 	 * const [point, bytesRead] = PointCodec.decode(bytes);
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [StructOutput<T>, number] {
-		const [decoded, size] = this.tuple.decodeFrom(data, offset);
+	public decoder(data: Uint8Array, offset: number): [StructOutput<T>, number] {
+		const [decoded, size] = this.tuple.decode(data, offset);
 		return [this.factory(...decoded), size];
 	}
 

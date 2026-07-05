@@ -106,8 +106,11 @@ export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<En
 	 * with zeros).
 	 *
 	 * @param value - Object with a `kind` discriminant and matching `value`.
-	 * @param target - Optional pre-allocated buffer of exactly `stride.size` bytes.
-	 * @returns The encoded bytes (always `stride.size` bytes long).
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer of exactly `stride.size` bytes. Pass a buffer to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` of `stride.size` bytes when `target` is
+	 *   omitted, otherwise the number of bytes written (always `stride.size`).
 	 *
 	 * @throws {Error} If `value.kind` is not a registered variant key.
 	 *   Message: `"Invalid union variant: <kind>"`.
@@ -116,19 +119,20 @@ export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<En
 	 * const bytes = EventCodec.encode({ kind: "MouseMove", value: { x: 100, y: 200 } });
 	 * // bytes.length === EventCodec.stride.size
 	 */
-	public encode(value: EnumInput<T>): Uint8Array<ArrayBuffer> {
-		const result = new Uint8Array(this.stride.size);
-		this.encodeInto(value, result);
-		return result;
-	}
-
-	public override encodeInto(value: EnumInput<T>, target: Uint8Array, offset: number = 0): number {
+	public encoder(value: EnumInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: EnumInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: EnumInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			const result = new Uint8Array(this.stride.size);
+			this.encodeInto(value, result);
+			return result;
+		}
 		const index = this.keys.indexOf(value.kind);
 		if (index === -1) {
 			throw new Error(`Invalid union variant: ${String(value.kind)}`);
 		}
-		const indexSize = this.indexer.encodeInto(index, target, offset);
-		const payloadOffset = offset + indexSize;
+		const indexSize = this.indexer.encodeInto(index, target, offset!);
+		const payloadOffset = offset! + indexSize;
 		// Zero the full payload region so smaller variants are padded.
 		target.fill(0, payloadOffset, payloadOffset + this.maxVariantSize);
 		this.variants[value.kind]!.encodeInto(value.value as never, target, payloadOffset);
@@ -141,7 +145,8 @@ export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<En
 	 * Always consumes exactly `stride.size` bytes regardless of the actual
 	 * variant payload size (padding is skipped).
 	 *
-	 * @param data - Byte array to decode from (must be at least `stride.size` bytes).
+	 * @param data - Byte array to decode from (must have at least `stride.size` bytes from `offset`).
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[{ kind, value }, stride.size]`.
 	 *
 	 * @throws {Error} If the decoded index is out of range.
@@ -151,15 +156,15 @@ export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<En
 	 * const [event, bytesRead] = EventCodec.decode(bytes);
 	 * // bytesRead === EventCodec.stride.size
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [EnumOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [EnumOutput<T>, number] {
 		const indexSize = this.indexer.stride.size;
-		const [index] = this.indexer.decodeFrom(data, offset);
+		const [index] = this.indexer.decode(data, offset);
 		if (index >= this.keys.length) {
 			throw new Error(`Invalid union index: ${index}`);
 		}
 		const key = this.keys[index]!;
 		const codec = this.variants[key]!;
-		const [value] = codec.decodeFrom(data, offset + indexSize);
+		const [value] = codec.decode(data, offset + indexSize);
 		return [{ kind: key, value } as never, this.stride.size];
 	}
 }

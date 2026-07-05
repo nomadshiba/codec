@@ -136,8 +136,10 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 *   `this.counter`, then encodes each element.
 	 *
 	 * @param value - Array of values to encode.
-	 * @param target - Optional pre-allocated buffer to write into.
-	 * @returns The encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 * @throws {RangeError} In fixed mode, if `value.length !== options.size`.
 	 *
 	 * @example
@@ -145,29 +147,43 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 * codec.encode([1, 2, 3]); // Uint8Array [1, 2, 3]
 	 * codec.encode([1, 2]);    // throws RangeError
 	 */
-	public encode(value: ArrayInput<T>): Uint8Array<ArrayBuffer> {
-		if (this.elementCount !== undefined) {
-			if (value.length !== this.elementCount) {
-				throw new RangeError(
-					`Expected array of length ${this.elementCount}, got ${value.length}`,
-				);
+	public encoder(value: ArrayInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: ArrayInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: ArrayInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (this.elementCount !== undefined && value.length !== this.elementCount) {
+			throw new RangeError(
+				`Expected array of length ${this.elementCount}, got ${value.length}`,
+			);
+		}
+
+		if (target !== undefined) {
+			let size = 0;
+			if (this.elementCount === undefined) {
+				size += this.counter.encodeInto(value.length, target, offset!);
 			}
+			for (const item of value) {
+				size += this.item.encodeInto(item, target, offset! + size);
+			}
+			return size;
+		}
+
+		if (this.elementCount !== undefined) {
 			// If item has fixed stride, the total size is known — write directly.
 			if (this.item.stride.kind === "fixed") {
 				const result = new Uint8Array(this.elementCount * this.item.stride.size);
-				let offset = 0;
+				let resultOffset = 0;
 				for (const item of value) {
-					offset += this.item.encodeInto(item, result, offset);
+					resultOffset += this.item.encodeInto(item, result, resultOffset);
 				}
 				return result;
 			}
 			// Fixed count, variable item: encode parts then concat.
 			const parts = value.map((item) => this.item.encode(item));
 			const result = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
-			let offset = 0;
+			let resultOffset = 0;
 			for (const part of parts) {
-				result.set(part, offset);
-				offset += part.length;
+				result.set(part, resultOffset);
+				resultOffset += part.length;
 			}
 			return result;
 		}
@@ -177,28 +193,12 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 		const prefix = this.counter.encode(value.length);
 		const result = new Uint8Array(prefix.length + combinedLength);
 		result.set(prefix);
-		let offset = prefix.length;
+		let resultOffset = prefix.length;
 		for (const part of parts) {
-			result.set(part, offset);
-			offset += part.length;
+			result.set(part, resultOffset);
+			resultOffset += part.length;
 		}
 		return result;
-	}
-
-	public override encodeInto(value: ArrayInput<T>, target: Uint8Array, offset: number = 0): number {
-		if (this.elementCount !== undefined && value.length !== this.elementCount) {
-			throw new RangeError(
-				`Expected array of length ${this.elementCount}, got ${value.length}`,
-			);
-		}
-		let size = 0;
-		if (this.elementCount === undefined) {
-			size += this.counter.encodeInto(value.length, target, offset);
-		}
-		for (const item of value) {
-			size += this.item.encodeInto(item, target, offset + size);
-		}
-		return size;
 	}
 
 	/**
@@ -210,6 +210,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 *   decodes that many elements sequentially.
 	 *
 	 * @param data - Byte array to decode from.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[decoded array, bytes consumed]`.
 	 *
 	 * @example
@@ -217,24 +218,24 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 * const [arr, n] = codec.decode(new Uint8Array([1, 2, 3, 99]));
 	 * // arr === [1, 2, 3], n === 3
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [ArrayOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [ArrayOutput<T>, number] {
 		if (this.elementCount !== undefined) {
 			const result: ArrayOutput<T> = [];
 			let currentOffset = offset;
 			for (let i = 0; i < this.elementCount; i++) {
-				const [value, size] = this.item.decodeFrom(data, currentOffset);
+				const [value, size] = this.item.decode(data, currentOffset);
 				result.push(value);
 				currentOffset += size;
 			}
 			return [result, currentOffset - offset];
 		}
 
-		const [count, bytesRead] = this.counter.decodeFrom(data, offset);
+		const [count, bytesRead] = this.counter.decode(data, offset);
 		const result: ArrayOutput<T> = [];
 		let currentOffset = offset + bytesRead;
 
 		for (let i = 0; i < count; i++) {
-			const [value, size] = this.item.decodeFrom(data, currentOffset);
+			const [value, size] = this.item.decode(data, currentOffset);
 			result.push(value);
 			currentOffset += size;
 		}

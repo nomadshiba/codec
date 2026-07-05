@@ -82,56 +82,60 @@ export class NullableCodec<T extends NullableGeneric> extends Codec<NullableOutp
 	 * - Otherwise: writes `0x01` followed by the inner codec's encoding.
 	 *
 	 * @param value - The value to encode, or `null`.
-	 * @param target - Optional pre-allocated buffer to write into.
-	 * @returns The encoded bytes.
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 *
 	 * @example
 	 * const bytes = codec.encode(null);   // presence byte = 0x00
 	 * const bytes = codec.encode("hi");   // presence byte = 0x01, then payload
 	 */
-	public encode(value: NullableInput<T>): Uint8Array<ArrayBuffer> {
-		if (value === null) {
-			const size = this.stride.kind === "fixed" ? this.stride.size : 1;
-			return new Uint8Array(size); // zero-filled by default
+	public encoder(value: NullableInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: NullableInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: NullableInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) {
+			if (value === null) {
+				const size = this.stride.kind === "fixed" ? this.stride.size : 1;
+				return new Uint8Array(size); // zero-filled by default
+			}
+			const encoded = this.inner.encode(value);
+			const result = new Uint8Array(1 + encoded.length);
+			result[0] = 1;
+			result.set(encoded, 1);
+			return result;
 		}
-		const encoded = this.inner.encode(value);
-		const result = new Uint8Array(1 + encoded.length);
-		result[0] = 1;
-		result.set(encoded, 1);
-		return result;
-	}
-
-	public override encodeInto(value: NullableInput<T>, target: Uint8Array, offset: number = 0): number {
 		if (value === null) {
 			const size = this.stride.kind === "fixed" ? this.stride.size : 1;
-			target.fill(0, offset, offset + size);
+			target.fill(0, offset, offset! + size);
 			return size;
 		}
-		target[offset] = 1;
-		return 1 + this.inner.encodeInto(value, target, offset + 1);
+		target[offset!] = 1;
+		return 1 + this.inner.encodeInto(value, target, offset! + 1);
 	}
 
 	/**
 	 * Decodes bytes into a nullable output value.
 	 *
-	 * Reads the first byte as a presence flag:
+	 * Reads the byte at `offset` as a presence flag:
 	 * - `0x00`: returns `null`. Consumes `stride.size` bytes for fixed inner
 	 *   codecs, or `1` byte for variable inner codecs.
-	 * - Any other value: decodes the inner value starting at byte 1.
+	 * - Any other value: decodes the inner value starting at `offset + 1`.
 	 *
 	 * @param data - Byte array to decode from.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[value | null, bytes consumed]`.
 	 *
 	 * @example
 	 * const [val, n] = codec.decode(bytes);
 	 * if (val === null) { ... }
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [NullableOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [NullableOutput<T>, number] {
 		if (data[offset] === 0) {
 			const size = this.stride.kind === "fixed" ? this.stride.size : 1;
 			return [null, size];
 		} else {
-			const [value, size] = this.inner.decodeFrom(data, offset + 1);
+			const [value, size] = this.inner.decode(data, offset + 1);
 			return [value, 1 + size];
 		}
 	}

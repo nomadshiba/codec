@@ -164,14 +164,39 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 	 *
 	 * @param value - The object to encode. Required fields must be present;
 	 *   optional fields may be omitted (`undefined`).
-	 * @param target - Optional pre-allocated buffer to write into. Must be large
-	 *   enough to hold the encoded result.
-	 * @returns The encoded bytes (either `target` or a freshly allocated buffer).
+	 * @param target - Omit (along with `offset`) to allocate and return a new
+	 *   buffer. Pass a buffer large enough to hold the result to write in place.
+	 * @param offset - Byte position within `target` to write at. Required together with `target`.
+	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written.
 	 *
 	 * @example
 	 * const bytes = codec.encode({ id: 1, name: "Alice" });
 	 */
-	public encode(value: ModelInput<T>): Uint8Array<ArrayBuffer> {
+	public encoder(value: ModelInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public encoder(value: ModelInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: ModelInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target !== undefined) {
+			let size = 0;
+			for (let i = 0; i < this.keys.length; i++) {
+				const rawKey = this.keys[i]!;
+				const codec = this.shape[rawKey]!;
+				if (rawKey.endsWith("?")) {
+					const fieldValue = value[rawKey.slice(0, -1) as keyof typeof value];
+					if (fieldValue === undefined) {
+						target[offset! + size] = 0x00;
+						size += 1;
+					} else {
+						target[offset! + size] = 0x01;
+						size += 1;
+						size += codec.encodeInto(fieldValue, target, offset! + size);
+					}
+				} else {
+					size += codec.encodeInto(value[rawKey as never], target, offset! + size);
+				}
+			}
+			return size;
+		}
+
 		if (this.stride.kind === "fixed") {
 			const result = new Uint8Array(this.stride.size);
 			this.encodeInto(value, result);
@@ -206,28 +231,6 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 		return result;
 	}
 
-	public override encodeInto(value: ModelInput<T>, target: Uint8Array, offset: number = 0): number {
-		let size = 0;
-		for (let i = 0; i < this.keys.length; i++) {
-			const rawKey = this.keys[i]!;
-			const codec = this.shape[rawKey]!;
-			if (rawKey.endsWith("?")) {
-				const fieldValue = value[rawKey.slice(0, -1) as keyof typeof value];
-				if (fieldValue === undefined) {
-					target[offset + size] = 0x00;
-					size += 1;
-				} else {
-					target[offset + size] = 0x01;
-					size += 1;
-					size += codec.encodeInto(fieldValue, target, offset + size);
-				}
-			} else {
-				size += codec.encodeInto(value[rawKey as never], target, offset + size);
-			}
-		}
-		return size;
-	}
-
 	/**
 	 * Decodes bytes into a model output object.
 	 *
@@ -236,6 +239,7 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 	 * result object.
 	 *
 	 * @param data - The byte array to decode from.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple of `[decoded object, bytes consumed]`.
 	 *
 	 * @throws {Error} If an internal factory construction fails (should not
@@ -244,14 +248,14 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 	 * @example
 	 * const [person, bytesRead] = codec.decode(bytes);
 	 */
-	public decodeFrom(data: Uint8Array, offset: number): [ModelOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [ModelOutput<T>, number] {
 		let currentOffset = offset;
 
 		if (this.factory !== null) {
 			const args = this.args;
 			for (let i = 0; i < this.keys.length; i++) {
 				const codec = this.shape[this.keys[i]!];
-				const [fieldValue, size] = codec.decodeFrom(data, currentOffset);
+				const [fieldValue, size] = codec.decode(data, currentOffset);
 				args[i] = fieldValue;
 				currentOffset += size;
 			}
@@ -273,13 +277,13 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 				currentOffset += 1;
 
 				if (presenceByte !== 0x00) {
-					const [fieldValue, size] = codec.decodeFrom(data, currentOffset);
+					const [fieldValue, size] = codec.decode(data, currentOffset);
 					optArgs[optLen++] = fieldValue;
 					mask |= this.optionalBits[i]!;
 					currentOffset += size;
 				}
 			} else {
-				const [fieldValue, size] = codec.decodeFrom(data, currentOffset);
+				const [fieldValue, size] = codec.decode(data, currentOffset);
 				reqArgs[reqIdx] = fieldValue;
 				reqIdx++;
 				currentOffset += size;

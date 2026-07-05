@@ -69,15 +69,6 @@ export declare namespace Codec {
  */
 export abstract class Codec<O extends I = any, I = O> {
 	/**
-	 * Set to `true` to suppress the console warnings emitted when a variable-stride
-	 * codec falls back to the default `size()` or `encodeInto()` implementations.
-	 *
-	 * @example
-	 * Codec.suppressWarnings = true;
-	 */
-	public static suppressWarnings = false;
-
-	/**
 	 * Phantom property — never assigned at runtime.
 	 * Carries the **input** type for use with {@link Codec.InferInput}.
 	 */
@@ -97,50 +88,88 @@ export abstract class Codec<O extends I = any, I = O> {
 	public abstract readonly stride: Stride;
 
 	/**
-	 * Encodes `value` into binary.
+	 * Core encoding primitive. Subclasses implement this single overloaded
+	 * method instead of separate `encode`/`encodeInto` implementations; the
+	 * concrete {@link encode} and {@link encodeInto} methods below both
+	 * delegate to it.
+	 *
+	 * - Called with `target`/`offset` both `undefined` — allocate and return a
+	 *   new `Uint8Array` containing the encoded value.
+	 * - Called with a `target` buffer and numeric `offset` — write the encoded
+	 *   bytes into `target` starting at `offset` and return the number of
+	 *   bytes written.
 	 *
 	 * @param value - The value to encode.
-	 * @param target - Optional pre-allocated buffer to write into. When provided,
-	 *   the implementation writes at offset 0 and returns it. When omitted, a new
-	 *   `Uint8Array` of the appropriate size is allocated.
-	 * @returns The buffer containing the encoded bytes (same reference as `target`
-	 *   when `target` is supplied).
-	 *
-	 * @example
-	 * const buf = U32.encode(0xDEADBEEF);
-	 * // buf => Uint8Array [0xDE, 0xAD, 0xBE, 0xEF]
+	 * @param target - Destination buffer, or `undefined` to allocate a new one.
+	 * @param offset - Byte position within `target` to start writing at.
+	 *   `undefined` when `target` is `undefined`.
+	 * @returns A new `Uint8Array` (allocating mode) or the number of bytes
+	 *   written (in-place mode).
 	 */
-	public abstract encode(value: I): Uint8Array<ArrayBuffer>;
-
-	public encodeInto(value: I, target: Uint8Array, offset?: number): number {
-		if (!Codec.suppressWarnings) {
-			console.warn(`${this.constructor.name}.encodeInto() falling back to encode() + target.set().`);
-		}
-		const bytes = this.encode(value);
-		target.set(bytes, offset);
-		return bytes.length;
-	}
+	public abstract encoder(value: I, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public abstract encoder(value: I, target: Uint8Array, offset: number): number;
 
 	/**
-	 * Decodes a value from the beginning of `data`. Equivalent to
-	 * {@link decodeFrom} with `offset` 0.
-	 */
-	public decode(data: Uint8Array): [O, number] {
-		return this.decodeFrom(data, 0);
-	}
-
-	/**
-	 * Decodes a value starting at `offset` within `data`.
+	 * Core decoding primitive. Subclasses implement this instead of a
+	 * separate `decodeFrom`; the concrete {@link decode} method below
+	 * delegates to it.
 	 *
 	 * @param data - Source bytes.
 	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple `[value, bytesConsumed]` where `bytesConsumed` is the
 	 *   number of bytes read starting at `offset` (not including `offset` itself).
+	 */
+	public abstract decoder(data: Uint8Array, offset: number): [O, number];
+
+	/**
+	 * Encodes `value` into a newly allocated buffer. Equivalent to calling
+	 * {@link encoder} with `target`/`offset` set to `undefined`.
+	 *
+	 * @param value - The value to encode.
+	 * @returns A new `Uint8Array` containing the encoded bytes.
+	 *
 	 * @example
-	 * const [value, size] = U32.decodeFrom(new Uint8Array([0xFF, 0, 0, 0, 42]), 1);
+	 * const buf = U32.encode(0xDEADBEEF);
+	 * // buf => Uint8Array [0xDE, 0xAD, 0xBE, 0xEF]
+	 */
+	public encode(value: I): Uint8Array<ArrayBuffer> {
+		return this.encoder(value, undefined, undefined);
+	}
+
+	/**
+	 * Encodes `value` in place into `target`. Equivalent to calling
+	 * {@link encoder} with the given `target`/`offset`.
+	 *
+	 * @param value - The value to encode.
+	 * @param target - Destination buffer to write into.
+	 * @param offset - Byte position within `target` to start writing at. Defaults to `0`.
+	 * @returns The number of bytes written.
+	 *
+	 * @example
+	 * const buf = new Uint8Array(4);
+	 * const written = U32.encodeInto(0xDEADBEEF, buf);
+	 * // written => 4, buf => Uint8Array [0xDE, 0xAD, 0xBE, 0xEF]
+	 */
+	public encodeInto(value: I, target: Uint8Array, offset: number = 0): number {
+		return this.encoder(value, target, offset);
+	}
+
+	/**
+	 * Decodes a value starting at `offset` within `data`. Equivalent to
+	 * calling {@link decoder} directly. Defaults to decoding from the
+	 * beginning of `data` when `offset` is omitted.
+	 *
+	 * @param data - Source bytes.
+	 * @param offset - Byte position to begin reading from. Defaults to `0`.
+	 * @returns A tuple `[value, bytesConsumed]` where `bytesConsumed` is the
+	 *   number of bytes read starting at `offset` (not including `offset` itself).
+	 * @example
+	 * const [value, size] = U32.decode(new Uint8Array([0xFF, 0, 0, 0, 42]), 1);
 	 * // value => 42, size => 4
 	 */
-	public abstract decodeFrom(data: Uint8Array, offset: number): [O, number];
+	public decode(data: Uint8Array, offset: number = 0): [O, number] {
+		return this.decoder(data, offset);
+	}
 
 	/**
 	 * Creates a new {@link TransformCodec} that wraps this codec and applies
@@ -249,20 +278,23 @@ export class TransformCodec<
 	 * Encodes `value` using the inner codec. No transformation applied on encode.
 	 *
 	 * @param value - Value to encode.
-	 * @returns Encoded bytes.
+	 * @param target - Destination buffer, or `undefined` to allocate a new one.
+	 * @param offset - Byte position within `target` to start writing at.
+	 * @returns A new `Uint8Array` (allocating mode) or the number of bytes
+	 *   written (in-place mode) — see {@link Codec.encoder}.
 	 */
-	public override encode(value: I): Uint8Array<ArrayBuffer> {
-		return this.inner.encode(value);
-	}
-
-	public override encodeInto(value: I, target: Uint8Array, offset: number = 0): number {
-		return this.inner.encodeInto(value, target, offset);
+	public override encoder(value: I, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
+	public override encoder(value: I, target: Uint8Array, offset: number): number;
+	public override encoder(value: I, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		if (target === undefined) return this.inner.encoder(value, undefined, undefined);
+		return this.inner.encoder(value, target, offset!);
 	}
 
 	/**
 	 * Decodes a value via the inner codec then applies `transformer`.
 	 *
-	 * @param data - Source bytes, read from offset 0.
+	 * @param data - Source bytes.
+	 * @param offset - Byte position to begin reading from.
 	 * @returns A tuple `[transformedValue, bytesConsumed]`.
 	 *
 	 * @example
@@ -270,8 +302,8 @@ export class TransformCodec<
 	 * const [s] = UpperStr.decode(encoded);
 	 * // s => "HELLO"
 	 */
-	public override decodeFrom(data: Uint8Array, offset: number): [T, number] {
-		const [value, size] = this.inner.decodeFrom(data, offset);
+	public override decoder(data: Uint8Array, offset: number): [T, number] {
+		const [value, size] = this.inner.decoder(data, offset);
 		const bytes = data.subarray(offset, offset + size);
 		const transformed = this.transformer(value, bytes);
 		return [transformed, size];
