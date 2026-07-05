@@ -149,25 +149,14 @@ higher-order codecs, or libraries built on top of this one.
 
 ## Primitive Codecs
 
-**Big-endian is the default.** Use `*LE` variants for little-endian.
+Fixed-width numeric and boolean codecs (signed/unsigned integers from 8 to 64 bits, 32/64-bit floats, booleans), plus a zero-byte `Void` codec and a
+variable-length `VarInt` (unsigned LEB128, backed by `bigint` variant `BigVarInt` for values beyond `Number.MAX_SAFE_INTEGER`). Every codec has a
+pre-instantiated singleton (e.g. `U32`) as well as an exported class (e.g. `U32Codec`) for cases like custom endianness.
 
-| Codec          | Type    | Size (bytes) | Description                  |
-| -------------- | ------- | ------------ | ---------------------------- |
-| `I8`           | number  | 1            | Signed 8-bit integer         |
-| `U8`           | number  | 1            | Unsigned 8-bit integer       |
-| `I16`, `I16LE` | number  | 2            | Signed 16-bit                |
-| `U16`, `U16LE` | number  | 2            | Unsigned 16-bit              |
-| `I32`, `I32LE` | number  | 4            | Signed 32-bit                |
-| `U32`, `U32LE` | number  | 4            | Unsigned 32-bit              |
-| `I64`, `I64LE` | bigint  | 8            | Signed 64-bit                |
-| `U64`, `U64LE` | bigint  | 8            | Unsigned 64-bit              |
-| `F32`, `F32LE` | number  | 4            | 32-bit float                 |
-| `F64`, `F64LE` | number  | 8            | 64-bit float                 |
-| `Bool`         | boolean | 1            | Boolean (`0x00`/`0x01`)      |
-| `VarInt`       | number  | variable     | Unsigned LEB128              |
-| `Void`         | void    | 0            | Zero bytes. Always succeeds. |
+**Big-endian is the default.** Sized integer/float codecs (16 bits and up) have `*LE` singletons for little-endian, or pass `{ endian: "le" }` to the
+constructor. Each singleton also exports a same-named type alias for its decoded value (e.g. `type Id = U32` is `number`).
 
-All numeric singletons (`U8`, `I32`, `F64`, etc.) are pre-instantiated. You only need to call `new` when specifying a non-default endianness:
+You only need to call `new` when specifying a non-default endianness — otherwise use the pre-built singleton:
 
 ```ts
 import { U16Codec } from "@nomadshiba/codec";
