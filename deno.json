@@ -1,11 +1,10 @@
 {
 	"name": "@nomadshiba/codec",
-	"version": "0.5.0-preview.6",
+	"version": "0.5.0",
 	"license": "LGPL-2.1-only",
 	"exports": "./lib/mod.ts",
 	"tasks": {
-		"check": "deno check && deno lint && deno test",
-		"publish:jsr": "git push https://github.com/DeepDoge/codec.git master"
+		"check": "deno check && deno lint && deno test"
 	},
 	"compilerOptions": {
 		"lib": [
