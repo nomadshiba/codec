@@ -1,18 +1,48 @@
 # @nomadshiba/codec
 
-Composable binary codecs for **TypeScript and JavaScript**.
+**Composable, type-safe binary codecs for TypeScript & JavaScript.**
 
-Encode and decode structured data to and from `Uint8Array` with a simple, type-safe, composable API.
+Define your wire format once as a value. Get a fully-typed `encode`/`decode` pair to and from `Uint8Array` — no schema files, no code generation, no decorators.
+Small codecs snap together into big ones, and TypeScript infers the exact shape of everything you build.
+
+```ts
+import { ArrayCodec, Str, StructCodec, U32, U8 } from "@nomadshiba/codec";
+
+const User = new StructCodec({
+	id: U32,
+	name: Str,
+	roles: new ArrayCodec(U8),
+});
+
+const bytes = User.encode({ id: 1, name: "Ada", roles: [0, 3] });
+const [user] = User.decode(bytes);
+// user: { id: number; name: string; roles: number[] }
+```
 
 ---
 
-## Installation
+## Why
+
+- **Composable by construction.** Every codec is a first-class value. Nest structs in arrays in enums in nullables — it's just function calls, and the types
+  follow.
+- **Type-safe, no boilerplate.** Your codec _is_ your type. `Codec.InferInput` / `Codec.InferOutput` derive the TS types straight from the definition, so they
+  can never drift out of sync.
+- **You own the bytes.** Big-endian by default, little-endian variants, `VarInt`, fixed-size framing, padded enums — the encoded layout is exactly what you
+  specify. Great for protocols, file formats, and on-chain/compact payloads.
+- **Fast paths built in.** Zero-copy decoding for bytes and strings (returns subarray views), and `encodeInto` writes directly into a buffer you already
+  allocated — no throwaway allocations in hot loops.
+- **Runs anywhere.** Deno, Node, Bun, browsers. Published on JSR, no runtime dependencies beyond the standard library.
+
+---
+
+## Install
 
 ```bash
 deno add jsr:@nomadshiba/codec
 ```
 
-**Or:**
+<details>
+<summary>Other package managers</summary>
 
 ```bash
 npx jsr add @nomadshiba/codec       # npm
@@ -24,448 +54,287 @@ bunx jsr add @nomadshiba/codec      # bun
 vlt install jsr:@nomadshiba/codec   # vlt
 ```
 
----
-
-## Breaking Changes
-
-See the [migrations](./migrations/) folder for upgrade instructions.
+</details>
 
 ---
 
-## Quick Start
+## The codec model
+
+Every codec extends `Codec<O, I>` — `O` is the type you get from `decode`, `I` the type you pass to `encode` (defaults to `O`). `O` must extend `I`: `encode`
+can be lenient and accept several input forms, while `decode` returns one canonical type that's always assignable back to what `encode` takes. Four members
+matter:
+
+| Member       | Signature                                                   | What it does                                            |
+| ------------ | ----------------------------------------------------------- | ------------------------------------------------------- |
+| `encode`     | `(value: I) => Uint8Array`                                  | Encode into a freshly allocated buffer.                 |
+| `encodeInto` | `(value: I, target: Uint8Array, offset?: number) => number` | Encode in place into `target`; returns bytes written.   |
+| `decode`     | `(data: Uint8Array, offset?: number) => [O, number]`        | Decode from `offset`; returns `[value, bytesConsumed]`. |
+| `stride`     | `{ kind: "fixed"; size } \| { kind: "variable" }`           | Whether encoded size is constant or value-dependent.    |
+
+`decode` returning the byte count means you can read many values back-to-back from one buffer by advancing the offset yourself. `stride` is what lets composites
+know their own size at build time — it's how `FixedEnumCodec` and fixed-size framing work.
+
+### Types come for free
 
 ```ts
-import { ModelCodec, StringCodec, U32 } from "@nomadshiba/codec";
+import { Codec, Str, StructCodec, U32 } from "@nomadshiba/codec";
 
-const User = new ModelCodec({
-	id: U32,
-	name: new StringCodec(),
-});
+const User = new StructCodec({ id: U32, name: Str });
 
-const bytes = User.encode({ id: 1, name: "Ada" });
-const [decoded] = User.decode(bytes);
-// { id: 1, name: "Ada" }
+type User = Codec.InferOutput<typeof User>; // { id: number; name: string }
+type UserIn = Codec.InferInput<typeof User>; // { id: number; name: string }
 ```
 
 ---
 
-## Core Concepts
+## Primitives
 
-All codecs extend `Codec<O, I>` and implement:
+Fixed-width numbers and booleans, plus a zero-byte `Void`. Each has a ready-made **singleton** (`U32`) and an underlying **class** (`U32Codec`) for when you
+need options.
 
-| Member       | Signature                                                   | Description                                                     |
-| ------------ | ----------------------------------------------------------- | --------------------------------------------------------------- |
-| `encode`     | `(value: I) => Uint8Array`                                  | Encode a value into a newly allocated buffer.                   |
-| `encodeInto` | `(value: I, target: Uint8Array, offset?: number) => number` | Encode a value in place into `target`, returning bytes written. |
-| `decode`     | `(data: Uint8Array, offset?: number) => [O, number]`        | Decode and return `[value, bytesConsumed]`.                     |
-| `stride`     | `Stride`                                                    | `{ kind: "fixed"; size: number }` or `{ kind: "variable" }`.    |
+| Codecs                            | Decoded type      |
+| --------------------------------- | ----------------- |
+| `U8` `I8` `U16` `I16` `U32` `I32` | `number`          |
+| `U64` `I64`                       | `bigint`          |
+| `F32` `F64`                       | `number`          |
+| `Bool`                            | `boolean`         |
+| `Void`                            | `undefined` (0 B) |
+| `VarInt`                          | `number` (LEB128) |
+| `BigVarInt`                       | `bigint` (LEB128) |
 
-`encodeInto` lets you write into a pre-allocated `Uint8Array` for performance-sensitive code, avoiding an extra allocation. `decode` accepts an `offset` to
-start decoding from a position other than the start of the buffer.
-
-### Type Inference
-
-Use the `Codec.Infer*` utilities to derive TypeScript types from a codec:
-
-```ts
-import { Codec, ModelCodec, StringCodec, U32 } from "@nomadshiba/codec";
-
-const User = new ModelCodec({ id: U32, name: new StringCodec() });
-
-type UserInput = Codec.InferInput<typeof User>; // { id: number; name: string }
-type UserOut = Codec.InferOutput<typeof User>; // { id: number; name: string }
-```
-
-| Utility                | Description                |
-| ---------------------- | -------------------------- |
-| `Codec.InferOutput<T>` | Type returned by `decode`. |
-| `Codec.InferInput<T>`  | Type accepted by `encode`. |
-
-### Generic, Input, and Output Types
-
-Each composite codec exports three companion types useful when writing generic functions or higher-order codecs:
-
-- **`*Generic`** — a constraint, the upper bound for type parameters. It says "this must be a codec/shape that this composite can wrap".
-
-- **`*Input<T>`** — the type accepted by `encode` for a given composite instance.
-
-- **`*Output<T>`** — the type returned by `decode` for a given composite instance.
+**Big-endian is the default.** Every 16-bit-and-wider codec ships a `*LE` little-endian singleton, or pass `{ endian: "le" }` to the class:
 
 ```ts
-// StructGeneric = { readonly [key: string]: Codec }
-// NullableGeneric = Codec
-// TupleGeneric = readonly Codec[]
-// etc.
+import { U16LE, U32Codec } from "@nomadshiba/codec";
+
+U16LE.encode(0xABCD); // little-endian singleton
+const u32le = new U32Codec({ endian: "le" }); // or construct your own
 ```
 
-```ts
-import {
-	ArrayCodec,
-	type ArrayGeneric,
-	type ArrayInput,
-	type ArrayOutput,
-	ModelCodec,
-	type ModelGeneric,
-	type ModelInput,
-	type ModelOutput,
-	StringCodec,
-	U32,
-} from "@nomadshiba/codec";
-
-// Accept a model codec and return its decoded value type
-function decodeFirst<T extends ModelGeneric>(
-	codec: ModelCodec<T>,
-	buffers: Uint8Array[],
-): ModelOutput<T> {
-	return codec.decode(buffers[0]!)[0];
-}
-
-// Accept an array codec and return its element array type
-function decodeAll<T extends ArrayGeneric>(
-	codec: ArrayCodec<T>,
-	data: Uint8Array,
-): ArrayOutput<T> {
-	return codec.decode(data)[0];
-}
-```
-
-The full set of pairs exported by the library:
-
-| Generic type        | Input type         | Output type         | Used by           |
-| ------------------- | ------------------ | ------------------- | ----------------- |
-| `NullableGeneric`   | `NullableInput<T>` | `NullableOutput<T>` | `NullableCodec`   |
-| `TupleGeneric`      | `TupleInput<T>`    | `TupleOutput<T>`    | `TupleCodec`      |
-| `StructGeneric`     | `StructInput<T>`   | `StructOutput<T>`   | `StructCodec`     |
-| `ModelGeneric`      | `ModelInput<T>`    | `ModelOutput<T>`    | `ModelCodec`      |
-| `ArrayGeneric`      | `ArrayInput<T>`    | `ArrayOutput<T>`    | `ArrayCodec`      |
-| `EnumGeneric`       | `EnumInput<T>`     | `EnumOutput<T>`     | `EnumCodec`       |
-| `PaddedEnumGeneric` | —                  | —                   | `PaddedEnumCodec` |
-| `MappingGeneric`    | `MappingInput<T>`  | `MappingOutput<T>`  | `MappingCodec`    |
-
-For most application code you won't need these directly — `Codec.InferOutput<T>` covers the common case. They become useful when writing generic helpers,
-higher-order codecs, or libraries built on top of this one.
+`VarInt` uses LEB128, so small numbers cost fewer bytes (0–127 → 1 byte, up to 16383 → 2 bytes, …). `BigVarInt` is the same encoding with no upper bound, backed
+by `bigint`.
 
 ---
 
-## Primitive Codecs
+## Variable-length data
 
-Fixed-width numeric and boolean codecs (signed/unsigned integers from 8 to 64 bits, 32/64-bit floats, booleans), plus a zero-byte `Void` codec and a
-variable-length `VarInt` (unsigned LEB128, backed by `bigint` variant `BigVarInt` for values beyond `Number.MAX_SAFE_INTEGER`). Every codec has a
-pre-instantiated singleton (e.g. `U32`) as well as an exported class (e.g. `U32Codec`) for cases like custom endianness.
+### Strings — `Str`
 
-**Big-endian is the default.** Sized integer/float codecs (16 bits and up) have `*LE` singletons for little-endian, or pass `{ endian: "le" }` to the
-constructor. Each singleton also exports a same-named type alias for its decoded value (e.g. `type Id = U32` is `number`).
-
-You only need to call `new` when specifying a non-default endianness — otherwise use the pre-built singleton:
-
-```ts
-import { U16Codec } from "@nomadshiba/codec";
-
-const u16le = new U16Codec({ endian: "le" });
-// or just use the pre-built singleton:
-import { U16LE } from "@nomadshiba/codec";
-```
-
----
-
-## Variable-Length Types
-
-### String
-
-UTF-8 string with a length prefix.
+UTF-8 with a length prefix. `Str` is the ready-made singleton (a `new StringCodec()`); reach for the class only to change the framing.
 
 ```ts
 import { Str, StringCodec, U32 } from "@nomadshiba/codec";
 
-// Default: varint length prefix
-const str = new StringCodec();
-str.encode("hello"); // [0x05, 0x68, 0x65, 0x6C, 0x6C, 0x6F]
+Str.encode("hello"); // [0x05, "hello"]  — VarInt length prefix
 
-// Pre-built singleton (same as new StringCodec())
-Str.encode("hi");
+new StringCodec({ sizer: U32 }); // fixed 4-byte length prefix instead of VarInt
+new StringCodec({ size: 36 }); // exactly 36 UTF-8 bytes, no prefix (throws on mismatch)
+```
 
-// Custom length codec
-const strU32 = new StringCodec({ sizer: U32 });
+### Bytes — `Bytes`
+
+Raw `Uint8Array`, same framing options. Decoding is **zero-copy** — you get a subarray view into the source buffer.
+
+```ts
+import { Bytes, BytesCodec } from "@nomadshiba/codec";
+
+Bytes.encode(new Uint8Array([1, 2, 3])); // VarInt-prefixed
+new BytesCodec({ size: 32 }); // fixed 32-byte field, e.g. a key or hash
 ```
 
 ---
 
-### Bytes
+## Composites
 
-Raw byte arrays.
+### Struct — fixed set of named fields
 
-```ts
-import { Bytes, BytesCodec, U32 } from "@nomadshiba/codec";
-
-// Variable-length (varint prefix) — pre-built singleton
-Bytes.encode(new Uint8Array([1, 2, 3]));
-
-// Variable-length with custom size codec
-const bytesU32 = new BytesCodec({ sizer: U32 });
-
-// Fixed-length (no prefix, stride = { kind: "fixed", size: 4 })
-const fixed4 = new BytesCodec({ size: 4 });
-fixed4.encode(new Uint8Array([1, 2, 3, 4]));
-// Throws RangeError if input length != 4
-```
-
----
-
-## Composite Codecs
-
-### Nullable
-
-Nullable values with a presence byte.
+Fields are encoded in **definition order** as a flat concatenation. All fields required. `stride` is `"fixed"` when every field is fixed-size.
 
 ```ts
-import { NullableCodec, U8 } from "@nomadshiba/codec";
+import { F32, StructCodec } from "@nomadshiba/codec";
 
-const maybeU8 = new NullableCodec(U8);
-maybeU8.encode(null); // [0x00, 0x00]  (flag + zero-padded for fixed inner)
-maybeU8.encode(7); // [0x01, 0x07]
+const Point = new StructCodec({ x: F32, y: F32 });
+Point.encode({ x: 1, y: 2.5 }); // 8 bytes, no framing overhead
 ```
 
-Wire format:
+> Reordering fields changes the binary layout and breaks compatibility with previously encoded data.
 
-```
-0x00 [padding]   → null (padding only for fixed-size inner codecs)
-0x01 <value>     → present value
-```
+### Model — named fields _with optional ones_
 
----
-
-### Tuple
-
-Fixed-count heterogeneous sequences. Elements are concatenated; no wrapper prefix is added by the tuple itself.
+Same as `Struct`, but append `?` to any key to make that field optional. Optional fields get a one-byte presence flag on the wire (`0x00` absent, `0x01`
+present) and become `?:` in the inferred type — required fields stay required.
 
 ```ts
-import { StringCodec, TupleCodec, U8 } from "@nomadshiba/codec";
-
-const t = new TupleCodec([U8, new StringCodec()]);
-t.encode([7, "hi"]); // [0x07, 0x02, 0x68, 0x69]
-```
-
-`stride` is `{ kind: "fixed", size: n }` (sum of all element strides) when all elements are fixed-size; `{ kind: "variable" }` if any element is variable.
-
----
-
-### Struct
-
-Named-field objects encoded in **definition order** (order matters for the binary layout). Append `"?"` to any field name to mark it as optional.
-
-```ts
-import { ModelCodec, StringCodec, U32, U8 } from "@nomadshiba/codec";
+import { Codec, ModelCodec, Str, U32, U8 } from "@nomadshiba/codec";
 
 const User = new ModelCodec({
 	id: U32,
-	name: new StringCodec(),
-	"age?": U8, // optional field
-	"bio?": new StringCodec(), // optional field
+	name: Str,
+	"age?": U8, // optional
+	"bio?": Str, // optional
 });
 
-User.encode({ id: 1, name: "Ada" }); // age/bio absent
-User.encode({ id: 1, name: "Ada", age: 30 }); // bio absent
-User.encode({ id: 1, name: "Ada", age: 30, bio: "Hello" }); // all present
-```
+User.encode({ id: 1, name: "Ada" }); // age + bio omitted from bytes
+User.encode({ id: 1, name: "Ada", age: 30, bio: "hi" }); // all present
 
-Optional fields use a presence byte in the wire format:
-
-```
-0x00              → field absent (undefined)
-0x01 <value>      → field present, encoded by its inner codec
-```
-
-TypeScript types are inferred correctly — optional fields become `?: T` in both the input and output types:
-
-```ts
-type UserInput = Codec.InferInput<typeof User>;
+type User = Codec.InferOutput<typeof User>;
 // { id: number; name: string; age?: number; bio?: string }
 ```
 
-`stride` is `{ kind: "variable" }` when any optional field is present, since they are inherently variable-length.
-
-**Reordering fields changes the binary layout** and breaks compatibility with previously encoded data.
-
-Access the codec shape via `User.shape`.
-
-#### partial()
-
-Returns a new `ModelCodec` where every field is optional. Required keys (`"field"`) become `"field?"`. Keys already optional are kept as-is. Field order and
-codecs are preserved.
+Use `Struct` when every field is always present; reach for `Model` the moment you need optionality. Both expose `.shape`, and both have `.partial()` — returning
+a `ModelCodec` where every field is optional (handy for PATCH-style updates):
 
 ```ts
-const User = new ModelCodec({ id: U32, name: new StringCodec() });
-const PartialUser = User.partial();
-
-PartialUser.encode({}); // all absent
-PartialUser.encode({ name: "Ada" }); // only name present
-PartialUser.encode({ id: 1, name: "Ada" }); // all present
+const Patch = User.partial();
+Patch.encode({ name: "Ada" }); // encode just the fields you have
 ```
 
----
+### Array — many of the same thing
 
-### Array
-
-Variable-length arrays of the same element type, prefixed with a count.
+Count prefix (VarInt by default) followed by the elements.
 
 ```ts
 import { ArrayCodec, U16, U32 } from "@nomadshiba/codec";
 
-// Default: varint count prefix
-const nums = new ArrayCodec(U16);
-nums.encode([1, 2, 3]);
-
-// Custom count codec
-const numsU32 = new ArrayCodec(U16, { counter: U32 });
+new ArrayCodec(U16).encode([1, 2, 3]); // [count, ...elements]
+new ArrayCodec(U16, { counter: U32 }); // fixed 4-byte count instead of VarInt
 ```
 
-Wire format:
+### Tuple — fixed-length, mixed types
 
-```
-<count> <elem0> <elem1> ...
-```
-
----
-
-### Enum
-
-Tagged unions. Variant indices are assigned in **definition order**. The default index codec is `U8` (supports up to 256 variants).
+Elements concatenated with no wrapper of its own.
 
 ```ts
-import { EnumCodec, StringCodec, U8 } from "@nomadshiba/codec";
+import { Str, TupleCodec, U8 } from "@nomadshiba/codec";
+
+new TupleCodec([U8, Str]).encode([7, "hi"]); // [0x07, 0x02, "hi"]
+```
+
+### Nullable — a value or `null`
+
+Presence byte, then the value. Fixed-size inners stay fixed-size (`null` is zero-padded), so it's safe inside padded layouts.
+
+```ts
+import { NullableCodec, U8 } from "@nomadshiba/codec";
+
+const MaybeU8 = new NullableCodec(U8);
+MaybeU8.encode(null); // [0x00, 0x00]
+MaybeU8.encode(7); // [0x01, 0x07]
+```
+
+#### Nullable vs. an optional Model field
+
+Both use a presence byte, but they exist for opposite goals — **fixed layout vs. dynamic packing.**
+
+A **Model optional field** (`"key?"`) wants to be dynamic: it packs only what's actually there. Absent → a single `0x00` and nothing else (the inner codec never
+runs, no space reserved); present → `0x01` then the value. The encoded size depends on which fields you supply, which is exactly why any optional field makes
+the struct `variable`. Compact, at the cost of a predictable layout.
+
+**Nullable with a fixed inner** refuses to be dynamic: it keeps the slot reserved either way. `null` still writes the presence byte plus a **zero-padded**
+payload, so the field is always `1 + inner.size` bytes whether or not there's a value. That constant footprint is what lets the stride stay `fixed` — every
+record lands at the same offset, so you can index or memory-map arrays of them.
+
+```ts
+new ModelCodec({ "age?": U8 }); // absent = 1 byte; the U8 is dropped     → variable
+new NullableCodec(U8); //           null  = 2 bytes; the U8 slot is zeroed → fixed
+```
+
+So: reach for an **optional field** to avoid spending bytes on data that isn't there; reach for **Nullable** when you want the shape to never move. The fixed
+behaviour only applies to a fixed inner — give Nullable a variable inner (a string, an array) and there's nothing to pad to, so it falls back to the dynamic
+form (`0x00` for null, `0x01 + value` otherwise) and goes `variable` like Model.
+
+### Enum — tagged unions
+
+A discriminant index (default `U8`, up to 256 variants) plus the selected variant's payload. Decodes to `{ kind, value }`.
+
+```ts
+import { EnumCodec, Str, U8 } from "@nomadshiba/codec";
 
 const Event = new EnumCodec({
-	Click: U8,
-	Message: new StringCodec(),
+	Click: U8, // index 0
+	Message: Str, // index 1
 });
-// "Click" → index 0, "Message" → index 1
 
 Event.encode({ kind: "Click", value: 5 });
 Event.encode({ kind: "Message", value: "hello" });
-// Decodes to: { kind: string, value: T }
 ```
 
-Wire format:
+> Variant order fixes the indices. Adding/removing variants shifts them and breaks old data; renaming is safe.
 
-```
-<index> <payload>
-```
+### FixedEnum — fixed-size tagged unions
 
-> **Note:** Variant indices are assigned in **definition order**. Adding or removing variants changes existing indices and breaks compatibility with previously
-> encoded data. Renaming variants is safe and does not affect indices.
-
-#### PaddedEnumCodec
-
-A fixed-size variant of `EnumCodec`. All variant codecs must be fixed-size. The encoded size is constant: `indexer.stride.size + max(variant.stride.size)`.
-Shorter variant payloads are zero-padded to the maximum variant size.
+Like `Enum`, but every variant must be fixed-size and all encode to the **same** constant length (shorter payloads are zero-padded), so the whole codec stays
+`fixed`. Useful when you need uniform records — arrays of enums, memory-mappable formats, fixed-size packets.
 
 ```ts
-import { PaddedEnumCodec, U16, U8 } from "@nomadshiba/codec";
+import { FixedEnumCodec, U16, U8 } from "@nomadshiba/codec";
 
-const Event = new PaddedEnumCodec({ Click: U8, Scroll: U16 });
-// stride = { kind: "fixed", size: 3 }  (1 byte index + 2 byte max payload)
-
-Event.encode({ kind: "Click", value: 5 }); // [0x00, 0x05, 0x00] (padded)
-Event.encode({ kind: "Scroll", value: 300 }); // [0x01, 0x01, 0x2c]
+const E = new FixedEnumCodec({ Click: U8, Scroll: U16 });
+// stride: fixed 3 bytes (1 index + 2 max payload)
+E.encode({ kind: "Click", value: 5 }); // [0x00, 0x05, 0x00]  ← padded
+E.encode({ kind: "Scroll", value: 300 }); // [0x01, 0x01, 0x2C]
 ```
 
----
+The fixed-size requirement is guarded both ways: variants are constrained to fixed-size codecs at the type level, _and_ the constructor throws if a
+variable-stride variant (or a variable-stride custom `indexer`) slips through. For variable-length variants, use `Enum` instead.
 
-### Mapping
+> Renamed from `PaddedEnumCodec` in 0.6.0. The old `PaddedEnum*` names still work as deprecated aliases.
 
-Key–value `Map` encoded as an array of `[key, value]` tuples with a count prefix.
+### Mapping — `Map<K, V>`
+
+A count-prefixed list of `[key, value]` pairs.
 
 ```ts
-import { MappingCodec, StringCodec, U32, U8 } from "@nomadshiba/codec";
+import { MappingCodec, Str, U8 } from "@nomadshiba/codec";
 
-const Dict = new MappingCodec([new StringCodec(), U8]);
+const Dict = new MappingCodec([Str, U8]);
 Dict.encode(new Map([["x", 1], ["y", 2]]));
-
-// Custom count codec
-const DictU32 = new MappingCodec([new StringCodec(), U8], { counter: U32 });
 ```
 
 ---
 
-## Transform
+## Transform — decode into richer values
 
-Every codec has a `.transform()` method that wraps it with a post-decode transformation. Encoding is unchanged; only decoding is transformed.
-
-```ts
-import { U64 } from "@nomadshiba/codec";
-
-// Decode a u64 timestamp directly as a Date
-const DateCodec = U64.transform((ms) => new Date(Number(ms)));
-
-type Decoded = Codec.InferOutput<typeof DateCodec>; // Date
-
-DateCodec.encode(BigInt(Date.now())); // still encodes as u64
-const [date] = DateCodec.decode(bytes); // returns Date
-```
-
-The transformer also receives the raw bytes that were consumed:
+`.transform()` wraps any codec with a post-decode step. Encoding is unchanged; decoding runs your function on the result. The transformed type must extend the
+codec's output type, so you can narrow, brand, validate, attach methods, or capture the raw bytes — but never wander off into an unrelated type.
 
 ```ts
-const validated = U32.transform((value, bytes) => {
-	if (value > 1000) throw new Error("value out of range");
-	return value;
-});
-```
+import { F32, StructCodec, U64 } from "@nomadshiba/codec";
 
-The result is a `TransformCodec` instance. Its `.inner` property holds the original wrapped codec.
+// u64 milliseconds → Date
+const Timestamp = U64.transform((ms) => new Date(Number(ms)));
+Timestamp.encode(BigInt(Date.now())); // still a plain u64 on the wire
+const [when] = Timestamp.decode(bytes); // Date
 
-The transformed type `T` must extend the codec's base decoded type `O`. This means the transformer can produce any subtype of `O` — narrowing values, attaching
-methods or getters, computing a hash, or capturing the raw bytes — but cannot return something entirely unrelated to `O`.
-
-```ts
-// Narrow with a branded type
-type UserId = string & { readonly brand: "UserId" };
-const UserIdCodec = Str.transform((s): UserId => {
-	if (!s.startsWith("usr_")) throw new Error("invalid user id");
-	return s as UserId;
+// validate on the way in
+const SmallU32 = U32.transform((n) => {
+	if (n > 1000) throw new Error("out of range");
+	return n;
 });
 
-// Attach methods and expose raw bytes
-const Point = ModelCodec({ x: F32, y: F32 });
+// attach behaviour + keep the raw bytes
+const Point = new StructCodec({ x: F32, y: F32 });
 const RichPoint = Point.transform((p, bytes) => ({
 	...p,
 	raw: bytes,
-	distanceFromOrigin() {
-		return Math.sqrt(this.x ** 2 + this.y ** 2);
+	dist() {
+		return Math.hypot(this.x, this.y);
 	},
 }));
 ```
 
+The result is a `TransformCodec`; its `.inner` holds the codec you wrapped.
+
 ---
 
-## Custom Codecs
+## Custom codecs
 
-Extend `Codec<O, I>` and implement the abstract `stride`, `encoder`, and `decoder` members. For fixed-size codecs, also declare `implements FixedCodec<O, I>` so
-TypeScript checks that `stride` is `{ kind: "fixed"; size: number }`.
-
-Subclasses implement `encoder`/`decoder` instead of `encode`/`decode` directly — the base `Codec` class provides `encode`, `encodeInto`, and `decode` for you,
-all delegating to these two primitives. `encoder` is overloaded: called with `target`/`offset` both `undefined` it must allocate and return a new `Uint8Array`;
-called with a `target` buffer and numeric `offset` it must write in place and return the number of bytes written.
+When the building blocks aren't enough, extend `Codec<O, I>` and implement `stride`, `encoder`, and `decoder`. The base class turns those into `encode`,
+`encodeInto`, and `decode` for you. Declare `implements FixedCodec<O, I>` for fixed-size codecs so TypeScript checks your `stride`.
 
 ```ts
 import { Codec, type FixedCodec, type Stride, U64 } from "@nomadshiba/codec";
 
-// Variable-size codec — extend Codec directly
-class PascalStringCodec extends Codec<string> {
-	readonly stride: Stride<"variable"> = { kind: "variable" };
-
-	encoder(value: string, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	encoder(value: string, target: Uint8Array, offset: number): number;
-	encoder(value: string, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
-		// ...
-	}
-
-	decoder(data: Uint8Array, offset: number): [string, number] {
-		// ...
-	}
-}
-
-// Fixed-size codec — implement FixedCodec by narrowing `stride`
 class DateCodec extends Codec<Date, Date | bigint> implements FixedCodec<Date, Date | bigint> {
 	readonly stride: Stride<"fixed"> = { kind: "fixed", size: 8 };
 
@@ -473,8 +342,7 @@ class DateCodec extends Codec<Date, Date | bigint> implements FixedCodec<Date, D
 	encoder(value: Date | bigint, target: Uint8Array, offset: number): number;
 	encoder(value: Date | bigint, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		const ms = typeof value === "bigint" ? value : BigInt(value.getTime());
-		if (target === undefined) return U64.encode(ms);
-		return U64.encodeInto(ms, target, offset);
+		return target === undefined ? U64.encode(ms) : U64.encodeInto(ms, target, offset);
 	}
 
 	decoder(data: Uint8Array, offset: number): [Date, number] {
@@ -484,12 +352,34 @@ class DateCodec extends Codec<Date, Date | bigint> implements FixedCodec<Date, D
 }
 ```
 
-The two type parameters are:
+`encoder` is overloaded on purpose: called with no `target` it allocates and returns a `Uint8Array`; called with a `target`/`offset` it writes in place and
+returns the byte count — the same dual mode that powers `encodeInto` throughout the library.
 
-- `O` — the **output** type returned by `decode`
-- `I` — the **input** type accepted by `encode` (defaults to `O`)
+The two type parameters are `O` (decoded output) and `I` (encoded input, defaults to `O`), and **`O` must extend `I`**. That lets `encode` accept a wider type
+than `decode` returns — the `DateCodec` above takes `Date | bigint` on the way in but always hands back a `Date`.
 
 ---
+
+## Generic helpers
+
+For most code, `Codec.InferInput` / `Codec.InferOutput` are all you need. When you write functions _over_ codecs, each composite also exports a `*Generic`
+constraint plus `*Input<T>` / `*Output<T>` pairs:
+
+```ts
+import { ArrayCodec, type ArrayGeneric, type ArrayOutput } from "@nomadshiba/codec";
+
+function decodeAll<T extends ArrayGeneric>(codec: ArrayCodec<T>, data: Uint8Array): ArrayOutput<T> {
+	return codec.decode(data)[0];
+}
+```
+
+The full set: `Nullable`, `Tuple`, `Struct`, `Model`, `Array`, `Enum`, `FixedEnum`, `Mapping` — each with `*Generic` / `*Input` / `*Output`.
+
+---
+
+## Breaking changes
+
+See the [migrations](./migrations/) folder for per-version upgrade notes.
 
 ## License
 
