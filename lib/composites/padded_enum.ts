@@ -2,22 +2,23 @@ import { Codec, type FixedCodec, type Stride } from "../codec.ts";
 import { U8Codec } from "../primitives.ts";
 import type { EnumInput, EnumOutput } from "./enum.ts";
 
-// ── PaddedEnum ─────────────────────────────────────────────────────────────────
+// ── FixedEnum ─────────────────────────────────────────────────────────────────
 
 /**
  * A record mapping variant names to **fixed-size** payload codecs.
  *
- * All variants must have a `"fixed"` stride; this is enforced at construction
- * time. Used with {@link PaddedEnumCodec}.
+ * All variants must have a `"fixed"` stride. This is enforced both at the type
+ * level (variants are constrained to {@link FixedCodec}) and at construction
+ * time. Used with {@link FixedEnumCodec}.
  */
-export type PaddedEnumGeneric = {
+export type FixedEnumGeneric = {
 	readonly [key: string]: FixedCodec;
 };
 
 /**
- * Options for {@link PaddedEnumCodec}.
+ * Options for {@link FixedEnumCodec}.
  */
-export type PaddedEnumOptions = {
+export type FixedEnumOptions = {
 	/**
 	 * Fixed-size codec used to encode/decode the variant index prefix.
 	 * Defaults to {@link U8Codec} (0–255 variants).
@@ -39,15 +40,15 @@ export type PaddedEnumOptions = {
  * heterogeneous data (e.g. fixed-size network packets, array elements that
  * must be randomly addressable).
  *
- * @template T - The variants map (a {@link PaddedEnumGeneric}).
+ * @template T - The variants map (a {@link FixedEnumGeneric}).
  *
  * @throws {Error} At construction if any variant codec has a variable stride.
- *   Message: `"PaddedEnumCodec: variant \"<key>\" must have a fixed-size codec"`.
+ *   Message: `"FixedEnumCodec: variant \"<key>\" must have a fixed-size codec"`.
  * @throws {Error} At construction if the `indexer` codec has a variable stride.
- *   Message: `"PaddedEnumCodec: indexer must have a fixed-size codec"`.
+ *   Message: `"FixedEnumCodec: indexer must have a fixed-size codec"`.
  *
  * @example
- * const EventCodec = new PaddedEnumCodec({
+ * const EventCodec = new FixedEnumCodec({
  *   KeyPress: new StructCodec({ code: U8, modifiers: U8 }),
  *   MouseMove: new StructCodec({ x: U16, y: U16 }),
  * });
@@ -57,7 +58,7 @@ export type PaddedEnumOptions = {
  * const [event] = EventCodec.decode(bytes);
  * // event.kind === "KeyPress", event.value.code === 65
  */
-export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<EnumOutput<T>, EnumInput<T>> {
+export class FixedEnumCodec<const T extends FixedEnumGeneric> extends Codec<EnumOutput<T>, EnumInput<T>> {
 	public readonly stride: Stride<"fixed">;
 
 	/** The variants map passed to the constructor. */
@@ -68,7 +69,7 @@ export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<En
 	public readonly maxVariantSize: number;
 	private readonly keys: (keyof T)[];
 
-	constructor(variants: T, options?: PaddedEnumOptions) {
+	constructor(variants: T, options?: FixedEnumOptions) {
 		super();
 		this.variants = variants;
 		this.keys = Object.keys(this.variants) as (keyof T)[];
@@ -78,13 +79,13 @@ export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<En
 			const codec = this.variants[key]!;
 			if (codec.stride.kind !== "fixed") {
 				throw new Error(
-					`PaddedEnumCodec: variant "${String(key)}" must have a fixed-size codec`,
+					`FixedEnumCodec: variant "${String(key)}" must have a fixed-size codec`,
 				);
 			}
 		}
 
 		if (this.indexer.stride.kind !== "fixed") {
-			throw new Error("PaddedEnumCodec: indexer must have a fixed-size codec");
+			throw new Error("FixedEnumCodec: indexer must have a fixed-size codec");
 		}
 
 		this.maxVariantSize = this.keys.reduce<number>((max, key) => {
@@ -168,3 +169,29 @@ export class PaddedEnumCodec<const T extends PaddedEnumGeneric> extends Codec<En
 		return [{ kind: key, value } as never, this.stride.size];
 	}
 }
+
+// ── Deprecated aliases ────────────────────────────────────────────────────────
+// `PaddedEnum*` was renamed to `FixedEnum*` in 0.6.0. These aliases keep the old
+// names working and will be removed in a future release.
+
+/**
+ * @deprecated Renamed to {@link FixedEnumCodec}. This alias will be removed in a
+ * future release — switch your imports to `FixedEnumCodec`.
+ */
+export const PaddedEnumCodec: typeof FixedEnumCodec = FixedEnumCodec;
+/**
+ * @deprecated Renamed to {@link FixedEnumCodec}. This alias will be removed in a
+ * future release — switch your imports to `FixedEnumCodec`.
+ */
+export type PaddedEnumCodec<T extends FixedEnumGeneric = FixedEnumGeneric> = FixedEnumCodec<T>;
+
+/**
+ * @deprecated Renamed to {@link FixedEnumGeneric}. This alias will be removed in
+ * a future release — switch to `FixedEnumGeneric`.
+ */
+export type PaddedEnumGeneric = FixedEnumGeneric;
+/**
+ * @deprecated Renamed to {@link FixedEnumOptions}. This alias will be removed in
+ * a future release — switch to `FixedEnumOptions`.
+ */
+export type PaddedEnumOptions = FixedEnumOptions;
