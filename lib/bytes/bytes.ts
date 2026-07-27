@@ -62,7 +62,7 @@ export type BytesOptions =
  * const [decoded, consumed] = Bytes.decode(encoded);
  * ```
  */
-export class BytesCodec<const O extends BytesOptions | undefined = undefined> extends Codec<Uint8Array<ArrayBuffer>> {
+export class BytesCodec<const O extends BytesOptions | undefined = undefined> extends Codec<Uint8Array<ArrayBuffer>, Uint8Array> {
 	/**
 	 * Describes the memory layout of encoded values.
 	 *
