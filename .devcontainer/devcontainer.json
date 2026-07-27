@@ -12,6 +12,7 @@
 			"type": "volume"
 		}
 	],
+	"postCreateCommand": "deno install",
 	"customizations": {
 		"vscode": {
 			"extensions": [

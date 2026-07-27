@@ -1,4 +1,5 @@
 import { Codec, type Stride } from "../codec.ts";
+import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { TupleCodec } from "./tuple.ts";
 import { ModelCodec, type PartialShape } from "./model.ts";
 
@@ -88,8 +89,8 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	 * const bytes = PointCodec.encode({ x: 0, y: 1 });
 	 */
 	public encoder(value: StructInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: StructInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: StructInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: StructInput<T>, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: StructInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (target === undefined) return this.tuple.encode(this.keys.map((key) => value[key]));
 		return this.tuple.encodeInto(this.keys.map((key) => value[key]), target, offset!);
 	}
@@ -107,7 +108,7 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	 * @example
 	 * const [point, bytesRead] = PointCodec.decode(bytes);
 	 */
-	public decoder(data: Uint8Array, offset: number): [StructOutput<T>, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [StructOutput<T>, number] {
 		const [decoded, size] = this.tuple.decode(data, offset);
 		return [this.factory(...decoded), size];
 	}

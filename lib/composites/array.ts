@@ -1,4 +1,5 @@
 import { Codec, type Stride } from "../codec.ts";
+import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { VarInt } from "../varint.ts";
 
 // ── Array ─────────────────────────────────────────────────────────────────────
@@ -148,8 +149,8 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 * codec.encode([1, 2]);    // throws RangeError
 	 */
 	public encoder(value: ArrayInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: ArrayInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: ArrayInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: ArrayInput<T>, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: ArrayInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (this.elementCount !== undefined && value.length !== this.elementCount) {
 			throw new RangeError(
 				`Expected array of length ${this.elementCount}, got ${value.length}`,
@@ -218,7 +219,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 * const [arr, n] = codec.decode(new Uint8Array([1, 2, 3, 99]));
 	 * // arr === [1, 2, 3], n === 3
 	 */
-	public decoder(data: Uint8Array, offset: number): [ArrayOutput<T>, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [ArrayOutput<T>, number] {
 		if (this.elementCount !== undefined) {
 			const result: ArrayOutput<T> = [];
 			let currentOffset = offset;

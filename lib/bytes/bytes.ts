@@ -1,4 +1,5 @@
 import { Codec, type Stride } from "../codec.ts";
+import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { VarInt } from "../varint.ts";
 
 /**
@@ -61,7 +62,7 @@ export type BytesOptions =
  * const [decoded, consumed] = Bytes.decode(encoded);
  * ```
  */
-export class BytesCodec<const O extends BytesOptions | undefined = undefined> extends Codec<Uint8Array> {
+export class BytesCodec<const O extends BytesOptions | undefined = undefined> extends Codec<Uint8Array<ArrayBuffer>> {
 	/**
 	 * Describes the memory layout of encoded values.
 	 *
@@ -106,8 +107,8 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 * ```
 	 */
 	public encoder(value: Uint8Array, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: Uint8Array, target: Uint8Array, offset: number): number;
-	public encoder(value: Uint8Array, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: Uint8Array, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: Uint8Array, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (this.stride.kind === "fixed") {
 			if (value.length !== this.stride.size) {
 				throw new RangeError(
@@ -157,17 +158,17 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 * // value → Uint8Array [0xaa, 0xbb], n === 2
 	 * ```
 	 */
-	public decoder(data: Uint8Array, offset: number): [Uint8Array, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [Uint8Array<ArrayBuffer>, number] {
 		if (this.stride.kind === "fixed") {
 			if (data.length - offset < this.stride.size) {
 				throw new RangeError(
 					`Expected at least ${this.stride.size} bytes, got ${data.length - offset}`,
 				);
 			}
-			return [data.subarray(offset, offset + this.stride.size), this.stride.size];
+			return [data.slice(offset, offset + this.stride.size), this.stride.size];
 		} else {
 			const [length, bytesRead] = this.sizer.decode(data, offset);
-			const decoded = data.subarray(offset + bytesRead, offset + bytesRead + length);
+			const decoded = data.slice(offset + bytesRead, offset + bytesRead + length);
 			return [decoded, bytesRead + length];
 		}
 	}

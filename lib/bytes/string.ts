@@ -1,4 +1,5 @@
 import { Codec, type Stride } from "../codec.ts";
+import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { VarInt } from "../varint.ts";
 
 /**
@@ -109,8 +110,8 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 * ```
 	 */
 	public encoder(value: string, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: string, target: Uint8Array, offset: number): number;
-	public encoder(value: string, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: string, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: string, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		const utf8 = this.textEncoder.encode(value);
 		if (this.stride.kind === "fixed") {
 			if (utf8.length !== this.stride.size) {
@@ -156,18 +157,18 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 * // str === "hi", n === 2
 	 * ```
 	 */
-	public decoder(data: Uint8Array, offset: number): [string, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [string, number] {
 		if (this.stride.kind === "fixed") {
 			if (data.length - offset < this.stride.size) {
 				throw new RangeError(
 					`Expected at least ${this.stride.size} bytes, got ${data.length - offset}`,
 				);
 			}
-			return [this.textDecoder.decode(data.subarray(offset, offset + this.stride.size)), this.stride.size];
+			return [this.textDecoder.decode(data.slice(offset, offset + this.stride.size)), this.stride.size];
 		}
 
 		const [length, bytesRead] = this.sizer.decode(data, offset);
-		const utf8 = data.subarray(offset + bytesRead, offset + bytesRead + length);
+		const utf8 = data.slice(offset + bytesRead, offset + bytesRead + length);
 		return [this.textDecoder.decode(utf8), bytesRead + length];
 	}
 }

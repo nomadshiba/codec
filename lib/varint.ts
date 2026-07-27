@@ -1,4 +1,5 @@
 import { Codec, type Stride } from "./codec.ts";
+import type { Uint8ArrayLike } from "./uint8_array_like.ts";
 
 /**
  * Codec for unsigned variable-length integers using the LEB128 encoding scheme.
@@ -40,8 +41,8 @@ export class VarIntCodec extends Codec<number> {
 	 * VarInt.encode(128) // Uint8Array [0x80, 0x01] — 2 bytes
 	 */
 	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: number, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: number, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (value < 0 || !Number.isSafeInteger(value)) {
 			throw new RangeError("Value must be a non-negative safe integer");
 		}
@@ -83,7 +84,7 @@ export class VarIntCodec extends Codec<number> {
 	 * VarInt.decode(new Uint8Array([0x01]))        // [1, 1]
 	 * VarInt.decode(new Uint8Array([0x80, 0x01]))  // [128, 2]
 	 */
-	public decoder(data: Uint8Array, offset: number): [number, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [number, number] {
 		let value = 0;
 		let shift = 0;
 		let bytesRead = 0;
@@ -156,8 +157,8 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 	 * BigVarInt.encode(128n) // Uint8Array [0x80, 0x01] — 2 bytes
 	 */
 	public encoder(value: bigint | number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: bigint | number, target: Uint8Array, offset: number): number;
-	public encoder(value: bigint | number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: bigint | number, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: bigint | number, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		let v = BigInt(value);
 		if (v < 0n) {
 			throw new RangeError("Value must be a non-negative integer");
@@ -197,7 +198,7 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 	 * BigVarInt.decode(new Uint8Array([0x01]))        // [1n, 1]
 	 * BigVarInt.decode(new Uint8Array([0x80, 0x01]))  // [128n, 2]
 	 */
-	public decoder(data: Uint8Array, offset: number): [bigint, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [bigint, number] {
 		let value = 0n;
 		let shift = 0n;
 		let bytesRead = 0;

@@ -1,4 +1,5 @@
 import { Codec, type Stride } from "../codec.ts";
+import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { U8Codec } from "../primitives.ts";
 
 // ── Enum ──────────────────────────────────────────────────────────────────────
@@ -114,8 +115,8 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 	 * const bytes = codec.encode({ kind: "Quit", value: null });
 	 */
 	public encoder(value: EnumInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: EnumInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: EnumInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: EnumInput<T>, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: EnumInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		const index = this.keys.indexOf(value.kind);
 		if (index === -1) {
 			throw new Error(`Invalid union variant: ${String(value.kind)}`);
@@ -149,7 +150,7 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 	 * const [shape, bytesRead] = ShapeCodec.decode(bytes);
 	 * if (shape.kind === "Circle") { ... }
 	 */
-	public decoder(data: Uint8Array, offset: number): [EnumOutput<T>, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [EnumOutput<T>, number] {
 		const [index, indexSize] = this.indexer.decode(data, offset);
 		if (index >= this.keys.length) {
 			throw new Error(`Invalid union index: ${index}`);

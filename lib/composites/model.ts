@@ -1,4 +1,5 @@
 import { Codec, type Stride } from "../codec.ts";
+import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -173,8 +174,8 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 	 * const bytes = codec.encode({ id: 1, name: "Alice" });
 	 */
 	public encoder(value: ModelInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: ModelInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: ModelInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: ModelInput<T>, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: ModelInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (target !== undefined) {
 			let size = 0;
 			for (let i = 0; i < this.keys.length; i++) {
@@ -248,7 +249,7 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 	 * @example
 	 * const [person, bytesRead] = codec.decode(bytes);
 	 */
-	public decoder(data: Uint8Array, offset: number): [ModelOutput<T>, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [ModelOutput<T>, number] {
 		let currentOffset = offset;
 
 		if (this.factory !== null) {

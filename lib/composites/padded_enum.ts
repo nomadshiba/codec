@@ -1,4 +1,5 @@
 import { Codec, type FixedCodec, type Stride } from "../codec.ts";
+import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { U8Codec } from "../primitives.ts";
 import type { EnumInput, EnumOutput } from "./enum.ts";
 
@@ -121,8 +122,8 @@ export class FixedEnumCodec<const T extends FixedEnumGeneric> extends Codec<Enum
 	 * // bytes.length === EventCodec.stride.size
 	 */
 	public encoder(value: EnumInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: EnumInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: EnumInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: EnumInput<T>, target: Uint8ArrayLike, offset: number): number;
+	public encoder(value: EnumInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (target === undefined) {
 			const result = new Uint8Array(this.stride.size);
 			this.encodeInto(value, result);
@@ -157,7 +158,7 @@ export class FixedEnumCodec<const T extends FixedEnumGeneric> extends Codec<Enum
 	 * const [event, bytesRead] = EventCodec.decode(bytes);
 	 * // bytesRead === EventCodec.stride.size
 	 */
-	public decoder(data: Uint8Array, offset: number): [EnumOutput<T>, number] {
+	public decoder(data: Uint8ArrayLike, offset: number): [EnumOutput<T>, number] {
 		const indexSize = this.indexer.stride.size;
 		const [index] = this.indexer.decode(data, offset);
 		if (index >= this.keys.length) {

@@ -36,6 +36,9 @@
 // Base codec class
 export * from "./codec.ts";
 
+// Byte-array-like structural type accepted for reads/writes
+export * from "./uint8_array_like.ts";
+
 // VarInt (LEB128 encoding for non-negative integers)
 export * from "./varint.ts";
 
