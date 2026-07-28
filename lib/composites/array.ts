@@ -1,5 +1,4 @@
 import { Codec, type Stride } from "../codec.ts";
-import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { VarInt } from "../varint.ts";
 
 // ── Array ─────────────────────────────────────────────────────────────────────
@@ -149,8 +148,8 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 * codec.encode([1, 2]);    // throws RangeError
 	 */
 	public encoder(value: ArrayInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: ArrayInput<T>, target: Uint8ArrayLike, offset: number): number;
-	public encoder(value: ArrayInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: ArrayInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: ArrayInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (this.elementCount !== undefined && value.length !== this.elementCount) {
 			throw new RangeError(
 				`Expected array of length ${this.elementCount}, got ${value.length}`,
@@ -188,7 +187,20 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 			}
 			return result;
 		}
-		// Variable count: encode parts, prepend count prefix.
+		// Variable count, fixed-stride item: total payload size is known, so allocate the
+		// exact buffer and encode each element straight into it — no per-item Uint8Array,
+		// no parts array, no concat.
+		if (this.item.stride.kind === "fixed") {
+			const prefix = this.counter.encode(value.length);
+			const result = new Uint8Array(prefix.length + value.length * this.item.stride.size);
+			result.set(prefix);
+			let resultOffset = prefix.length;
+			for (const item of value) {
+				resultOffset += this.item.encodeInto(item, result, resultOffset);
+			}
+			return result;
+		}
+		// Variable count, variable-stride item: sizes unknown up front — encode parts, prepend count prefix.
 		const parts = value.map((item) => this.item.encode(item));
 		const combinedLength = parts.reduce((sum, p) => sum + p.length, 0);
 		const prefix = this.counter.encode(value.length);
@@ -219,7 +231,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 * const [arr, n] = codec.decode(new Uint8Array([1, 2, 3, 99]));
 	 * // arr === [1, 2, 3], n === 3
 	 */
-	public decoder(data: Uint8ArrayLike, offset: number): [ArrayOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [ArrayOutput<T>, number] {
 		if (this.elementCount !== undefined) {
 			const result: ArrayOutput<T> = [];
 			let currentOffset = offset;

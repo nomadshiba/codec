@@ -1,6 +1,5 @@
 import { assertEquals } from "@std/assert";
 import { TransformCodec } from "~/codec.ts";
-import type { Uint8ArrayLike } from "~/uint8_array_like.ts";
 import { U8, Void } from "~/primitives.ts";
 
 // ── VoidCodec / Void ──────────────────────────────────────────────────────────
@@ -68,7 +67,7 @@ Deno.test("TransformCodec - encode delegates to inner codec unchanged", () => {
 });
 
 Deno.test("TransformCodec - transformer receives raw bytes", () => {
-	let capturedBytes: Uint8ArrayLike | null = null;
+	let capturedBytes: Uint8Array | null = null;
 	const Spy = U8.transform((n, bytes) => {
 		capturedBytes = bytes;
 		return n;

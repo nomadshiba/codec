@@ -1,5 +1,3 @@
-import type { Uint8ArrayLike } from "~/uint8_array_like.ts";
-
 type StrideGeneric =
 	| { readonly kind: "fixed"; readonly size: number }
 	| { readonly kind: "variable"; readonly size?: undefined };
@@ -109,7 +107,7 @@ export abstract class Codec<O extends I = any, I = O> {
 	 *   written (in-place mode).
 	 */
 	public abstract encoder(value: I, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public abstract encoder(value: I, target: Uint8ArrayLike, offset: number): number;
+	public abstract encoder(value: I, target: Uint8Array, offset: number): number;
 
 	/**
 	 * Core decoding primitive. Subclasses implement this instead of a
@@ -121,7 +119,7 @@ export abstract class Codec<O extends I = any, I = O> {
 	 * @returns A tuple `[value, bytesConsumed]` where `bytesConsumed` is the
 	 *   number of bytes read starting at `offset` (not including `offset` itself).
 	 */
-	public abstract decoder(data: Uint8ArrayLike, offset: number): [O, number];
+	public abstract decoder(data: Uint8Array, offset: number): [O, number];
 
 	/**
 	 * Encodes `value` into a newly allocated buffer. Equivalent to calling
@@ -152,7 +150,7 @@ export abstract class Codec<O extends I = any, I = O> {
 	 * const written = U32.encodeInto(0xDEADBEEF, buf);
 	 * // written => 4, buf => Uint8Array [0xDE, 0xAD, 0xBE, 0xEF]
 	 */
-	public encodeInto(value: I, target: Uint8ArrayLike, offset: number = 0): number {
+	public encodeInto(value: I, target: Uint8Array, offset: number = 0): number {
 		return this.encoder(value, target, offset);
 	}
 
@@ -169,7 +167,7 @@ export abstract class Codec<O extends I = any, I = O> {
 	 * const [value, size] = U32.decode(new Uint8Array([0xFF, 0, 0, 0, 42]), 1);
 	 * // value => 42, size => 4
 	 */
-	public decode(data: Uint8ArrayLike, offset: number = 0): [O, number] {
+	public decode(data: Uint8Array, offset: number = 0): [O, number] {
 		return this.decoder(data, offset);
 	}
 
@@ -191,7 +189,7 @@ export abstract class Codec<O extends I = any, I = O> {
 	 * // hex => "ff"
 	 */
 	public transform<T extends O>(
-		transformer: (value: O, bytes: Uint8ArrayLike) => T,
+		transformer: (value: O, bytes: Uint8Array) => T,
 	): TransformCodec<this, T, O, I> {
 		return new TransformCodec(this, transformer);
 	}
@@ -262,14 +260,14 @@ export class TransformCodec<
 
 	/** The wrapped inner codec. */
 	public readonly inner: C;
-	private readonly transformer: (value: O, bytes: Uint8ArrayLike) => T;
+	private readonly transformer: (value: O, bytes: Uint8Array) => T;
 
 	/**
 	 * @param inner - The codec whose `encode`/`decode` this wraps.
 	 * @param transformer - Pure function applied to each decoded value. Receives
 	 *   the raw decoded `value` and the raw `bytes` slice that produced it.
 	 */
-	constructor(inner: C, transformer: (value: O, bytes: Uint8ArrayLike) => T) {
+	constructor(inner: C, transformer: (value: O, bytes: Uint8Array) => T) {
 		super();
 		this.inner = inner;
 		this.stride = inner.stride;
@@ -286,8 +284,8 @@ export class TransformCodec<
 	 *   written (in-place mode) — see {@link Codec.encoder}.
 	 */
 	public override encoder(value: I, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public override encoder(value: I, target: Uint8ArrayLike, offset: number): number;
-	public override encoder(value: I, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public override encoder(value: I, target: Uint8Array, offset: number): number;
+	public override encoder(value: I, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (target === undefined) return this.inner.encoder(value, undefined, undefined);
 		return this.inner.encoder(value, target, offset!);
 	}
@@ -304,7 +302,7 @@ export class TransformCodec<
 	 * const [s] = UpperStr.decode(encoded);
 	 * // s => "HELLO"
 	 */
-	public override decoder(data: Uint8ArrayLike, offset: number): [T, number] {
+	public override decoder(data: Uint8Array, offset: number): [T, number] {
 		const [value, size] = this.inner.decoder(data, offset);
 		const bytes = data.subarray(offset, offset + size);
 		const transformed = this.transformer(value, bytes);

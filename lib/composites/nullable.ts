@@ -1,5 +1,4 @@
 import { Codec, type Stride } from "../codec.ts";
-import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 
 // ── Nullable ──────────────────────────────────────────────────────────────────
 
@@ -93,8 +92,8 @@ export class NullableCodec<T extends NullableGeneric> extends Codec<NullableOutp
 	 * const bytes = codec.encode("hi");   // presence byte = 0x01, then payload
 	 */
 	public encoder(value: NullableInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: NullableInput<T>, target: Uint8ArrayLike, offset: number): number;
-	public encoder(value: NullableInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: NullableInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: NullableInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (target === undefined) {
 			if (value === null) {
 				const size = this.stride.kind === "fixed" ? this.stride.size : 1;
@@ -131,7 +130,7 @@ export class NullableCodec<T extends NullableGeneric> extends Codec<NullableOutp
 	 * const [val, n] = codec.decode(bytes);
 	 * if (val === null) { ... }
 	 */
-	public decoder(data: Uint8ArrayLike, offset: number): [NullableOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [NullableOutput<T>, number] {
 		if (data[offset] === 0) {
 			const size = this.stride.kind === "fixed" ? this.stride.size : 1;
 			return [null, size];

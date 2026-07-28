@@ -1,5 +1,4 @@
 import { concat } from "@std/bytes";
-import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { Codec, type Stride } from "../codec.ts";
 
 // ── Tuple ─────────────────────────────────────────────────────────────────────
@@ -90,8 +89,8 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 	 * const bytes = RgbCodec.encode([0, 255, 0]);
 	 */
 	public encoder(value: TupleInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: TupleInput<T>, target: Uint8ArrayLike, offset: number): number;
-	public encoder(value: TupleInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: TupleInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: TupleInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (target !== undefined) {
 			let size = 0;
 			for (let i = 0; i < this.items.length; i++) {
@@ -133,7 +132,7 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 	 * @example
 	 * const [[r, g, b], bytesRead] = RgbCodec.decode(bytes);
 	 */
-	public decoder(data: Uint8ArrayLike, offset: number): [TupleOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [TupleOutput<T>, number] {
 		const values = new Array<unknown>(this.items.length) as TupleOutput<T>;
 		let currentOffset = offset;
 		for (let i = 0; i < this.items.length; i++) {

@@ -1,5 +1,4 @@
 import { Codec, type Stride } from "../codec.ts";
-import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { ArrayCodec } from "./array.ts";
 import { TupleCodec } from "./tuple.ts";
 
@@ -92,8 +91,8 @@ export class MappingCodec<const T extends MappingGeneric> extends Codec<MappingO
 	 * const bytes = codec.encode(new Map([["a", 1]]));
 	 */
 	public encoder(value: MappingInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: MappingInput<T>, target: Uint8ArrayLike, offset: number): number;
-	public encoder(value: MappingInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: MappingInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: MappingInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (target === undefined) return this.entriesCodec.encode(value.entries().toArray() as never);
 		return this.entriesCodec.encodeInto(value.entries().toArray() as never, target, offset!);
 	}
@@ -108,7 +107,7 @@ export class MappingCodec<const T extends MappingGeneric> extends Codec<MappingO
 	 * @example
 	 * const [map, bytesRead] = codec.decode(bytes);
 	 */
-	public decoder(data: Uint8ArrayLike, offset: number): [MappingOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [MappingOutput<T>, number] {
 		const [entries, size] = this.entriesCodec.decode(data, offset);
 		return [new Map(entries), size];
 	}

@@ -1,5 +1,4 @@
 import { Codec, type Stride } from "../codec.ts";
-import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { VarInt } from "../varint.ts";
 
 /**
@@ -107,8 +106,8 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 * ```
 	 */
 	public encoder(value: Uint8Array, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: Uint8Array, target: Uint8ArrayLike, offset: number): number;
-	public encoder(value: Uint8Array, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder(value: Uint8Array, target: Uint8Array, offset: number): number;
+	public encoder(value: Uint8Array, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
 		if (this.stride.kind === "fixed") {
 			if (value.length !== this.stride.size) {
 				throw new RangeError(
@@ -158,16 +157,18 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 * // value → Uint8Array [0xaa, 0xbb], n === 2
 	 * ```
 	 */
-	public decoder(data: Uint8ArrayLike, offset: number): [Uint8Array<ArrayBuffer>, number] {
+	public decoder(data: Uint8Array, offset: number): [Uint8Array<ArrayBuffer>, number] {
 		if (this.stride.kind === "fixed") {
 			if (data.length - offset < this.stride.size) {
 				throw new RangeError(
 					`Expected at least ${this.stride.size} bytes, got ${data.length - offset}`,
 				);
 			}
+			// Zero-copy: return a view into `data` (aliases the input buffer), not a copy.
 			return [data.slice(offset, offset + this.stride.size), this.stride.size];
 		} else {
 			const [length, bytesRead] = this.sizer.decode(data, offset);
+			// Zero-copy: view into `data`, not a copy.
 			const decoded = data.slice(offset + bytesRead, offset + bytesRead + length);
 			return [decoded, bytesRead + length];
 		}

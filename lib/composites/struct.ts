@@ -1,5 +1,4 @@
 import { Codec, type Stride } from "../codec.ts";
-import type { Uint8ArrayLike } from "../uint8_array_like.ts";
 import { TupleCodec } from "./tuple.ts";
 import { ModelCodec, type PartialShape } from "./model.ts";
 
@@ -57,20 +56,40 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	public readonly shape: T;
 
 	private readonly keys: Extract<keyof T, string>[];
+	private readonly codecs: Codec[];
 	private readonly tuple: TupleCodec<any>;
 	private readonly args: string[];
 	private readonly factory: (...args: unknown[]) => StructOutput<T>;
+	// Generated encode-side writer: reads each field by literal key and writes
+	// it straight into `target`, returning the byte count. Same `new Function`
+	// codegen as `factory` — each `value["k"]` access and `codecs[i].encodeInto`
+	// call site is monomorphic, so V8 keeps them fast and no intermediate
+	// positional array is allocated on the hot `encodeInto` path.
+	private readonly writeInto: (codecs: Codec[], value: StructInput<T>, target: Uint8Array, offset: number) => number;
+	// Positional collector for the variable-stride allocate path, where total
+	// size isn't known up front and we delegate to the tuple's concat. Avoids
+	// the per-call `keys.map(closure)` allocation the old code paid every encode.
+	private readonly collect: (value: StructInput<T>) => unknown[];
 
 	constructor(shape: T) {
 		super();
 		this.shape = shape;
 		this.keys = Object.keys(shape) as typeof this.keys;
-		this.tuple = new TupleCodec(Object.values(shape));
+		this.codecs = Object.values(shape);
+		this.tuple = new TupleCodec(this.codecs);
 		this.stride = this.tuple.stride as typeof this.stride;
 		this.args = this.keys.keys().map((i) => `arg${i}`).toArray();
 
 		const body = `return { ${this.keys.map((key, i) => `${JSON.stringify(String(key))}: arg${i}`).join(", ")} };`;
 		this.factory = new Function(...this.args, body) as typeof this.factory;
+
+		const writeBody = `let size = 0;\n${
+			this.keys.map((key, i) => `size += codecs[${i}].encodeInto(value[${JSON.stringify(String(key))}], target, offset + size);`).join("\n")
+		}\nreturn size;`;
+		this.writeInto = new Function("codecs", "value", "target", "offset", writeBody) as typeof this.writeInto;
+
+		const collectBody = `return [${this.keys.map((key) => `value[${JSON.stringify(String(key))}]`).join(", ")}];`;
+		this.collect = new Function("value", collectBody) as typeof this.collect;
 	}
 
 	/**
@@ -89,10 +108,19 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	 * const bytes = PointCodec.encode({ x: 0, y: 1 });
 	 */
 	public encoder(value: StructInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: StructInput<T>, target: Uint8ArrayLike, offset: number): number;
-	public encoder(value: StructInput<T>, target?: Uint8ArrayLike, offset?: number): Uint8Array<ArrayBuffer> | number {
-		if (target === undefined) return this.tuple.encode(this.keys.map((key) => value[key]));
-		return this.tuple.encodeInto(this.keys.map((key) => value[key]), target, offset!);
+	public encoder(value: StructInput<T>, target: Uint8Array, offset: number): number;
+	public encoder(value: StructInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+		// Hot path: write fields straight into the caller's buffer, zero extra allocation.
+		if (target !== undefined) return this.writeInto(this.codecs, value, target, offset!);
+		// Fixed stride: total size is known, so allocate the exact buffer and write into it directly.
+		if (this.stride.kind === "fixed") {
+			const out = new Uint8Array(this.stride.size);
+			this.writeInto(this.codecs, value, out, 0);
+			return out;
+		}
+		// Variable stride: size isn't known up front; delegate to the tuple's concat with a
+		// positionally-collected values array (no per-field closure allocation).
+		return this.tuple.encode(this.collect(value));
 	}
 
 	/**
@@ -108,7 +136,7 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	 * @example
 	 * const [point, bytesRead] = PointCodec.decode(bytes);
 	 */
-	public decoder(data: Uint8ArrayLike, offset: number): [StructOutput<T>, number] {
+	public decoder(data: Uint8Array, offset: number): [StructOutput<T>, number] {
 		const [decoded, size] = this.tuple.decode(data, offset);
 		return [this.factory(...decoded), size];
 	}
