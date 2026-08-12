@@ -280,17 +280,6 @@ variable-stride variant (or a variable-stride custom `indexer`) slips through. F
 
 > Renamed from `PaddedEnumCodec` in 0.6.0. The old `PaddedEnum*` names still work as deprecated aliases.
 
-### Mapping — `Map<K, V>`
-
-A count-prefixed list of `[key, value]` pairs.
-
-```ts
-import { MappingCodec, Str, U8 } from "@nomadshiba/codec";
-
-const Dict = new MappingCodec([Str, U8]);
-Dict.encode(new Map([["x", 1], ["y", 2]]));
-```
-
 ---
 
 ## Transform — decode into richer values
@@ -373,7 +362,7 @@ function decodeAll<T extends ArrayGeneric>(codec: ArrayCodec<T>, data: Uint8Arra
 }
 ```
 
-The full set: `Nullable`, `Tuple`, `Struct`, `Model`, `Array`, `Enum`, `FixedEnum`, `Mapping` — each with `*Generic` / `*Input` / `*Output`.
+The full set: `Nullable`, `Tuple`, `Struct`, `Model`, `Array`, `Enum`, `FixedEnum` — each with `*Generic` / `*Input` / `*Output`.
 
 ---
 

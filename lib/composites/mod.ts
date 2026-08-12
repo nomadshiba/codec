@@ -8,7 +8,6 @@
  * - {@link ArrayCodec} — variable-length homogeneous sequence
  * - {@link EnumCodec} — tagged union / discriminated enum (variable-size variants)
  * - {@link PaddedEnumCodec} — tagged union with fixed-size padded variants
- * - {@link MappingCodec} — `Map<K, V>` key-value store
  * - {@link StructCodec} — named-field struct (all fields required)
  * - {@link ModelCodec} — named-field struct with per-field optionality
  *
@@ -19,6 +18,5 @@ export * from "./tuple.ts";
 export * from "./array.ts";
 export * from "./enum.ts";
 export * from "./padded_enum.ts";
-export * from "./mapping.ts";
 export * from "./struct.ts";
 export * from "./model.ts";

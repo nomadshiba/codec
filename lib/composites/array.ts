@@ -14,7 +14,7 @@ export type ArrayGeneric = Codec;
  *
  * @template T - The element codec type.
  */
-export type ArrayInput<T extends ArrayGeneric> = Codec.InferInput<T>[];
+export type ArrayInput<T extends ArrayGeneric> = readonly Codec.InferInput<T>[] | Codec.InferInput<T>[];
 
 /**
  * Derives the decode-side (output) array element type from an element codec.

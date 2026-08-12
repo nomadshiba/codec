@@ -30,7 +30,7 @@
  *   UTF-8 strings.
  *
  * - **Composites** (`./composites/mod`) — Higher-order codec builders:
- *   nullable, tuple, array, enum, padded enum, mapping, struct, and model.
+ *   nullable, tuple, array, enum, padded enum, struct, and model.
  */
 
 // Base codec class

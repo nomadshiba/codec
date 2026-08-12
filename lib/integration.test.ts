@@ -1,12 +1,10 @@
 import { assertEquals } from "@std/assert";
 import { ArrayCodec } from "~/composites/array.ts";
 import { EnumCodec } from "~/composites/enum.ts";
-import { MappingCodec } from "~/composites/mapping.ts";
 import { ModelCodec } from "~/composites/model.ts";
 import { NullableCodec } from "~/composites/nullable.ts";
-import { TupleCodec } from "~/composites/tuple.ts";
 import { StringCodec } from "~/bytes/string.ts";
-import { Bool, F64, I32, U32, U8 } from "~/primitives.ts";
+import { Bool, I32, U32, U8 } from "~/primitives.ts";
 
 Deno.test("Complex - nested structures", () => {
 	const Address = new ModelCodec({
@@ -53,18 +51,6 @@ Deno.test("Complex - nullable nested structures", () => {
 	const val2 = { enabled: false, timeout: null, endpoints: [] };
 	const [decoded2] = Config.decode(Config.encode(val2));
 	assertEquals(decoded2, val2);
-});
-
-Deno.test("Complex - mapping with tuples", () => {
-	const coordMap = new MappingCodec([new StringCodec(), new TupleCodec([F64, F64])]);
-
-	const val = new Map<string, [number, number]>([
-		["home", [40.7128, -74.0060]],
-		["work", [37.7749, -122.4194]],
-	]);
-
-	const [decoded] = coordMap.decode(coordMap.encode(val));
-	assertEquals(Array.from(decoded.entries()), Array.from(val.entries()));
 });
 
 Deno.test("Complex - array of unions", () => {

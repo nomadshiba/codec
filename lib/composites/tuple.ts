@@ -7,7 +7,7 @@ import { Codec, type Stride } from "../codec.ts";
  * A readonly array of codecs, one per tuple position.
  * Used as the generic constraint for {@link TupleCodec}.
  */
-export type TupleGeneric = readonly Codec[];
+export type TupleGeneric = readonly Codec[] | Codec[];
 
 /**
  * Derives the encode-side (input) tuple type from a {@link TupleGeneric} codec
@@ -15,9 +15,7 @@ export type TupleGeneric = readonly Codec[];
  *
  * @template T - Tuple of codecs.
  */
-export type TupleInput<T extends TupleGeneric> = {
-	-readonly [I in keyof T]: Codec.InferInput<T[I]>;
-};
+export type TupleInput<T extends TupleGeneric> = { readonly [I in keyof T]: Codec.InferInput<T[I]> } | { [I in keyof T]: Codec.InferInput<T[I]> };
 
 /**
  * Derives the decode-side (output) tuple type from a {@link TupleGeneric}
@@ -25,9 +23,7 @@ export type TupleInput<T extends TupleGeneric> = {
  *
  * @template T - Tuple of codecs.
  */
-export type TupleOutput<T extends TupleGeneric> = {
-	-readonly [I in keyof T]: Codec.InferOutput<T[I]>;
-};
+export type TupleOutput<T extends TupleGeneric> = { -readonly [I in keyof T]: Codec.InferOutput<T[I]> };
 
 /**
  * Codec for a heterogeneous fixed-length sequence of values (a tuple).
