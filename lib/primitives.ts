@@ -71,16 +71,14 @@ export class I8Codec extends Codec<number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`1`).
 	 */
-	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(1);
 			arr[0] = value & 0xff;
-			return arr;
+			return [arr as TU, 1];
 		}
 		target[offset!] = value & 0xff;
-		return 1;
+		return [target, 1];
 	}
 
 	/**
@@ -123,16 +121,14 @@ export class U8Codec extends Codec<number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`1`).
 	 */
-	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(1);
 			arr[0] = value & 0xff;
-			return arr;
+			return [arr as TU, 1];
 		}
 		target[offset!] = value & 0xff;
-		return 1;
+		return [target, 1];
 	}
 
 	/**
@@ -185,16 +181,14 @@ export class I16Codec extends Codec<number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`2`).
 	 */
-	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(2);
 			this.write(arr, 0, value);
-			return arr;
+			return [arr as TU, 2];
 		}
 		this.write(target, offset!, value);
-		return 2;
+		return [target, 2];
 	}
 
 	private write(target: Uint8Array, offset: number, value: number): void {
@@ -259,16 +253,14 @@ export class U16Codec extends Codec<number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`2`).
 	 */
-	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(2);
 			this.write(arr, 0, value);
-			return arr;
+			return [arr as TU, 2];
 		}
 		this.write(target, offset!, value);
-		return 2;
+		return [target, 2];
 	}
 
 	private write(target: Uint8Array, offset: number, value: number): void {
@@ -331,16 +323,14 @@ export class I32Codec extends Codec<number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`4`).
 	 */
-	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(4);
 			this.write(arr, 0, value);
-			return arr;
+			return [arr as TU, 4];
 		}
 		this.write(target, offset!, value);
-		return 4;
+		return [target, 4];
 	}
 
 	private write(target: Uint8Array, offset: number, value: number): void {
@@ -410,16 +400,14 @@ export class U32Codec extends Codec<number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`4`).
 	 */
-	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(4);
 			this.write(arr, 0, value);
-			return arr;
+			return [arr as TU, 4];
 		}
 		this.write(target, offset!, value);
-		return 4;
+		return [target, 4];
 	}
 
 	private write(target: Uint8Array, offset: number, value: number): void {
@@ -489,16 +477,14 @@ export class I64Codec extends Codec<bigint, bigint | number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`8`).
 	 */
-	public encoder(value: bigint | number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: bigint | number, target: Uint8Array, offset: number): number;
-	public encoder(value: bigint | number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: bigint | number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(8);
 			writeBigInt64(arr, 0, BigInt(value), this.littleEndian);
-			return arr;
+			return [arr as TU, 8];
 		}
 		writeBigInt64(target, offset!, BigInt(value), this.littleEndian);
-		return 8;
+		return [target, 8];
 	}
 
 	/**
@@ -552,16 +538,14 @@ export class U64Codec extends Codec<bigint, bigint | number> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`8`).
 	 */
-	public encoder(value: bigint | number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: bigint | number, target: Uint8Array, offset: number): number;
-	public encoder(value: bigint | number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: bigint | number, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(8);
 			writeBigInt64(arr, 0, BigInt(value), this.littleEndian);
-			return arr;
+			return [arr as TU, 8];
 		}
 		writeBigInt64(target, offset!, BigInt(value), this.littleEndian);
-		return 8;
+		return [target, 8];
 	}
 
 	/**
@@ -620,9 +604,7 @@ export class F32Codec extends Codec<number, number | bigint> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`4`).
 	 */
-	public encoder(value: number | bigint, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number | bigint, target: Uint8Array, offset: number): number;
-	public encoder(value: number | bigint, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number | bigint, target?: TU, offset?: number): [TU, number] {
 		this.scratch.setFloat32(0, Number(value), this.littleEndian);
 		const s = this.scratchBytes;
 		if (target === undefined) {
@@ -631,14 +613,14 @@ export class F32Codec extends Codec<number, number | bigint> {
 			arr[1] = s[1]!;
 			arr[2] = s[2]!;
 			arr[3] = s[3]!;
-			return arr;
+			return [arr as TU, 4];
 		}
 		const o = offset!;
 		target[o] = s[0]!;
 		target[o + 1] = s[1]!;
 		target[o + 2] = s[2]!;
 		target[o + 3] = s[3]!;
-		return 4;
+		return [target, 4];
 	}
 
 	/**
@@ -699,9 +681,7 @@ export class F64Codec extends Codec<number, number | bigint> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`8`).
 	 */
-	public encoder(value: number | bigint, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number | bigint, target: Uint8Array, offset: number): number;
-	public encoder(value: number | bigint, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number | bigint, target?: TU, offset?: number): [TU, number] {
 		this.scratch.setFloat64(0, Number(value), this.littleEndian);
 		const s = this.scratchBytes;
 		if (target === undefined) {
@@ -714,7 +694,7 @@ export class F64Codec extends Codec<number, number | bigint> {
 			arr[5] = s[5]!;
 			arr[6] = s[6]!;
 			arr[7] = s[7]!;
-			return arr;
+			return [arr as TU, 8];
 		}
 		const o = offset!;
 		target[o] = s[0]!;
@@ -725,7 +705,7 @@ export class F64Codec extends Codec<number, number | bigint> {
 		target[o + 5] = s[5]!;
 		target[o + 6] = s[6]!;
 		target[o + 7] = s[7]!;
-		return 8;
+		return [target, 8];
 	}
 
 	/**
@@ -778,16 +758,14 @@ export class BoolCodec extends Codec<boolean> {
 	 * @param offset - Byte position within `target` to write at. Required together with `target`.
 	 * @returns A new `Uint8Array` when `target` is omitted, otherwise the number of bytes written (`1`).
 	 */
-	public encoder(value: boolean, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: boolean, target: Uint8Array, offset: number): number;
-	public encoder(value: boolean, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: boolean, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const arr = new Uint8Array(1);
 			arr[0] = value ? 1 : 0;
-			return arr;
+			return [arr as TU, 1];
 		}
 		target[offset!] = value ? 1 : 0;
-		return 1;
+		return [target, 1];
 	}
 
 	/**
@@ -873,11 +851,9 @@ export class VoidCodec extends Codec<void, null | undefined | void> {
 	 * @param offset - Ignored when `target` is provided.
 	 * @returns An empty `Uint8Array` when `target` is omitted, otherwise `0` (bytes written).
 	 */
-	public override encoder(value: void | null | undefined, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public override encoder(value: void | null | undefined, target: Uint8Array, offset: number): number;
-	public override encoder(_value: void | null | undefined, target?: Uint8Array, _offset?: number): Uint8Array<ArrayBuffer> | number {
-		if (target === undefined) return new Uint8Array(0);
-		return 0;
+	public override encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(_value: void | null | undefined, target?: TU, _offset?: number): [TU, number] {
+		if (target === undefined) return [new Uint8Array(0) as TU, 0];
+		return [target, 0];
 	}
 
 	/**

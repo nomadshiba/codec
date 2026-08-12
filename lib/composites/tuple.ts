@@ -88,9 +88,7 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 	 * @example
 	 * const bytes = RgbCodec.encode([0, 255, 0]);
 	 */
-	public encoder(value: TupleInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: TupleInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: TupleInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: TupleInput<T>, target?: TU, offset?: number): [TU, number] {
 		if (target !== undefined) {
 			let size = 0;
 			for (let i = 0; i < this.items.length; i++) {
@@ -98,7 +96,7 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 				const itemValue = value[i]!;
 				size += item.encodeInto(itemValue, target, offset! + size);
 			}
-			return size;
+			return [target, size];
 		}
 		if (this.stride.kind === "fixed") {
 			const bytes = new Uint8Array(this.stride.size);
@@ -108,7 +106,7 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 				const itemValue = value[i]!;
 				bytesOffset += item.encodeInto(itemValue, bytes, bytesOffset);
 			}
-			return bytes;
+			return [bytes as TU, this.stride.size];
 		}
 		const parts = new Array<Uint8Array>(this.items.length);
 		for (let i = 0; i < this.items.length; i++) {
@@ -116,7 +114,8 @@ export class TupleCodec<const T extends TupleGeneric> extends Codec<TupleOutput<
 			const itemValue = value[i]!;
 			parts[i] = item.encode(itemValue);
 		}
-		return concat(parts);
+		const result = concat(parts);
+		return [result as TU, result.length];
 	}
 
 	/**

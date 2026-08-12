@@ -113,9 +113,7 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 	 * @example
 	 * const bytes = codec.encode({ kind: "Quit", value: null });
 	 */
-	public encoder(value: EnumInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: EnumInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: EnumInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: EnumInput<T>, target?: TU, offset?: number): [TU, number] {
 		const index = this.keys.indexOf(value.kind);
 		if (index === -1) {
 			throw new Error(`Invalid union variant: ${String(value.kind)}`);
@@ -126,10 +124,10 @@ export class EnumCodec<const T extends EnumGeneric> extends Codec<EnumOutput<T>,
 			const result = new Uint8Array(indexBytes.length + payload.length);
 			result.set(indexBytes);
 			result.set(payload, indexBytes.length);
-			return result;
+			return [result as TU, result.length];
 		}
 		const indexSize = this.indexer.encodeInto(index, target, offset!);
-		return indexSize + this.variants[value.kind]!.encodeInto(value.value as never, target, offset! + indexSize);
+		return [target, indexSize + this.variants[value.kind]!.encodeInto(value.value as never, target, offset! + indexSize)];
 	}
 
 	/**

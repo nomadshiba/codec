@@ -107,20 +107,19 @@ export class StructCodec<const T extends StructGeneric> extends Codec<StructOutp
 	 * @example
 	 * const bytes = PointCodec.encode({ x: 0, y: 1 });
 	 */
-	public encoder(value: StructInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: StructInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: StructInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: StructInput<T>, target?: TU, offset?: number): [TU, number] {
 		// Hot path: write fields straight into the caller's buffer, zero extra allocation.
-		if (target !== undefined) return this.writeInto(this.codecs, value, target, offset!);
+		if (target !== undefined) return [target, this.writeInto(this.codecs, value, target, offset!)];
 		// Fixed stride: total size is known, so allocate the exact buffer and write into it directly.
 		if (this.stride.kind === "fixed") {
 			const out = new Uint8Array(this.stride.size);
 			this.writeInto(this.codecs, value, out, 0);
-			return out;
+			return [out as TU, this.stride.size];
 		}
 		// Variable stride: size isn't known up front; delegate to the tuple's concat with a
 		// positionally-collected values array (no per-field closure allocation).
-		return this.tuple.encode(this.collect(value));
+		const bytes = this.tuple.encode(this.collect(value));
+		return [bytes as TU, bytes.length];
 	}
 
 	/**

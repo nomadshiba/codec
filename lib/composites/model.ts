@@ -172,9 +172,7 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 	 * @example
 	 * const bytes = codec.encode({ id: 1, name: "Alice" });
 	 */
-	public encoder(value: ModelInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: ModelInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: ModelInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: ModelInput<T>, target?: TU, offset?: number): [TU, number] {
 		if (target !== undefined) {
 			let size = 0;
 			for (let i = 0; i < this.keys.length; i++) {
@@ -194,13 +192,13 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 					size += codec.encodeInto(value[rawKey as never], target, offset! + size);
 				}
 			}
-			return size;
+			return [target, size];
 		}
 
 		if (this.stride.kind === "fixed") {
 			const result = new Uint8Array(this.stride.size);
 			this.encodeInto(value, result);
-			return result;
+			return [result as TU, this.stride.size];
 		}
 		const parts: Uint8Array[] = [];
 		for (let i = 0; i < this.keys.length; i++) {
@@ -228,7 +226,7 @@ export class ModelCodec<const T extends ModelGeneric> extends Codec<ModelOutput<
 			result.set(part, off);
 			off += part.length;
 		}
-		return result;
+		return [result as TU, result.length];
 	}
 
 	/**

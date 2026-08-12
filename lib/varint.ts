@@ -39,9 +39,7 @@ export class VarIntCodec extends Codec<number> {
 	 * VarInt.encode(1)   // Uint8Array [0x01]  — 1 byte
 	 * VarInt.encode(128) // Uint8Array [0x80, 0x01] — 2 bytes
 	 */
-	public encoder(value: number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: number, target: Uint8Array, offset: number): number;
-	public encoder(value: number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: number, target?: TU, offset?: number): [TU, number] {
 		if (value < 0 || !Number.isSafeInteger(value)) {
 			throw new RangeError("Value must be a non-negative safe integer");
 		}
@@ -54,7 +52,7 @@ export class VarIntCodec extends Codec<number> {
 			parts.push(value & 0x7F);
 			const result = new Uint8Array(parts.length);
 			result.set(parts);
-			return result;
+			return [result as TU, parts.length];
 		}
 		let i = offset!;
 		while (value > 0x7F) {
@@ -62,7 +60,7 @@ export class VarIntCodec extends Codec<number> {
 			value = Math.floor(value / 128);
 		}
 		target[i++] = value & 0x7F;
-		return i - offset!;
+		return [target, i - offset!];
 	}
 
 	/**
@@ -155,9 +153,7 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 	 * BigVarInt.encode(1n)   // Uint8Array [0x01]  — 1 byte
 	 * BigVarInt.encode(128n) // Uint8Array [0x80, 0x01] — 2 bytes
 	 */
-	public encoder(value: bigint | number, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: bigint | number, target: Uint8Array, offset: number): number;
-	public encoder(value: bigint | number, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: bigint | number, target?: TU, offset?: number): [TU, number] {
 		let v = BigInt(value);
 		if (v < 0n) {
 			throw new RangeError("Value must be a non-negative integer");
@@ -171,7 +167,7 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 			parts.push(Number(v & 0x7Fn));
 			const result = new Uint8Array(parts.length);
 			result.set(parts);
-			return result;
+			return [result as TU, parts.length];
 		}
 		let i = offset!;
 		while (v > 0x7Fn) {
@@ -179,7 +175,7 @@ export class BigVarIntCodec extends Codec<bigint, bigint | number> {
 			v >>= 7n;
 		}
 		target[i++] = Number(v & 0x7Fn);
-		return i - offset!;
+		return [target, i - offset!];
 	}
 
 	/**

@@ -105,9 +105,7 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 	 * codec.encode(new Uint8Array([1, 2]));        // throws RangeError
 	 * ```
 	 */
-	public encoder(value: Uint8Array, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: Uint8Array, target: Uint8Array, offset: number): number;
-	public encoder(value: Uint8Array, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: Uint8Array, target?: TU, offset?: number): [TU, number] {
 		if (this.stride.kind === "fixed") {
 			if (value.length !== this.stride.size) {
 				throw new RangeError(
@@ -117,21 +115,21 @@ export class BytesCodec<const O extends BytesOptions | undefined = undefined> ex
 			if (target === undefined) {
 				const result = new Uint8Array(this.stride.size);
 				result.set(value);
-				return result;
+				return [result as TU, this.stride.size];
 			}
 			target.set(value, offset!);
-			return this.stride.size;
+			return [target, this.stride.size];
 		}
 		if (target === undefined) {
 			const prefix = this.sizer.encode(value.length);
 			const result = new Uint8Array(prefix.length + value.length);
 			result.set(prefix);
 			result.set(value, prefix.length);
-			return result;
+			return [result as TU, result.length];
 		}
 		const prefixSize = this.sizer.encodeInto(value.length, target, offset!);
 		target.set(value, offset! + prefixSize);
-		return prefixSize + value.length;
+		return [target, prefixSize + value.length];
 	}
 
 	/**

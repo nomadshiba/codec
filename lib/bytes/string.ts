@@ -108,9 +108,7 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 	 * codec.encode("hi");    // throws RangeError
 	 * ```
 	 */
-	public encoder(value: string, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: string, target: Uint8Array, offset: number): number;
-	public encoder(value: string, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: string, target?: TU, offset?: number): [TU, number] {
 		const utf8 = this.textEncoder.encode(value);
 		if (this.stride.kind === "fixed") {
 			if (utf8.length !== this.stride.size) {
@@ -118,20 +116,20 @@ export class StringCodec<const O extends StringOptions | undefined = undefined> 
 					`Expected UTF-8 byte length of ${this.stride.size}, got ${utf8.length}`,
 				);
 			}
-			if (target === undefined) return utf8;
+			if (target === undefined) return [utf8 as TU, this.stride.size];
 			target.set(utf8, offset!);
-			return this.stride.size;
+			return [target, this.stride.size];
 		}
 		if (target === undefined) {
 			const prefix = this.sizer.encode(utf8.length);
 			const result = new Uint8Array(prefix.length + utf8.length);
 			result.set(prefix);
 			result.set(utf8, prefix.length);
-			return result;
+			return [result as TU, result.length];
 		}
 		const prefixSize = this.sizer.encodeInto(utf8.length, target, offset!);
 		target.set(utf8, offset! + prefixSize);
-		return prefixSize + utf8.length;
+		return [target, prefixSize + utf8.length];
 	}
 
 	/**

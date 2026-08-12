@@ -90,11 +90,13 @@ export class MappingCodec<const T extends MappingGeneric> extends Codec<MappingO
 	 * @example
 	 * const bytes = codec.encode(new Map([["a", 1]]));
 	 */
-	public encoder(value: MappingInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: MappingInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: MappingInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
-		if (target === undefined) return this.entriesCodec.encode(value.entries().toArray() as never);
-		return this.entriesCodec.encodeInto(value.entries().toArray() as never, target, offset!);
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: MappingInput<T>, target?: TU, offset?: number): [TU, number] {
+		if (target === undefined) {
+			const bytes = this.entriesCodec.encode(value.entries().toArray() as never);
+			return [bytes as TU, bytes.length];
+		}
+		const size = this.entriesCodec.encodeInto(value.entries().toArray() as never, target, offset!);
+		return [target, size];
 	}
 
 	/**

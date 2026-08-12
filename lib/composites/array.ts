@@ -147,9 +147,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 	 * codec.encode([1, 2, 3]); // Uint8Array [1, 2, 3]
 	 * codec.encode([1, 2]);    // throws RangeError
 	 */
-	public encoder(value: ArrayInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: ArrayInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: ArrayInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: ArrayInput<T>, target?: TU, offset?: number): [TU, number] {
 		if (this.elementCount !== undefined && value.length !== this.elementCount) {
 			throw new RangeError(
 				`Expected array of length ${this.elementCount}, got ${value.length}`,
@@ -164,7 +162,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 			for (const item of value) {
 				size += this.item.encodeInto(item, target, offset! + size);
 			}
-			return size;
+			return [target, size];
 		}
 
 		if (this.elementCount !== undefined) {
@@ -175,7 +173,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 				for (const item of value) {
 					resultOffset += this.item.encodeInto(item, result, resultOffset);
 				}
-				return result;
+				return [result as TU, result.length];
 			}
 			// Fixed count, variable item: encode parts then concat.
 			const parts = value.map((item) => this.item.encode(item));
@@ -185,7 +183,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 				result.set(part, resultOffset);
 				resultOffset += part.length;
 			}
-			return result;
+			return [result as TU, result.length];
 		}
 		// Variable count, fixed-stride item: total payload size is known, so allocate the
 		// exact buffer and encode each element straight into it — no per-item Uint8Array,
@@ -198,7 +196,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 			for (const item of value) {
 				resultOffset += this.item.encodeInto(item, result, resultOffset);
 			}
-			return result;
+			return [result as TU, result.length];
 		}
 		// Variable count, variable-stride item: sizes unknown up front — encode parts, prepend count prefix.
 		const parts = value.map((item) => this.item.encode(item));
@@ -211,7 +209,7 @@ export class ArrayCodec<T extends ArrayGeneric, const O extends ArrayOptions | u
 			result.set(part, resultOffset);
 			resultOffset += part.length;
 		}
-		return result;
+		return [result as TU, result.length];
 	}
 
 	/**

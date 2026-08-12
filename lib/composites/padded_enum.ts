@@ -120,13 +120,11 @@ export class FixedEnumCodec<const T extends FixedEnumGeneric> extends Codec<Enum
 	 * const bytes = EventCodec.encode({ kind: "MouseMove", value: { x: 100, y: 200 } });
 	 * // bytes.length === EventCodec.stride.size
 	 */
-	public encoder(value: EnumInput<T>, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public encoder(value: EnumInput<T>, target: Uint8Array, offset: number): number;
-	public encoder(value: EnumInput<T>, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
+	public encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: EnumInput<T>, target?: TU, offset?: number): [TU, number] {
 		if (target === undefined) {
 			const result = new Uint8Array(this.stride.size);
 			this.encodeInto(value, result);
-			return result;
+			return [result as TU, this.stride.size];
 		}
 		const index = this.keys.indexOf(value.kind);
 		if (index === -1) {
@@ -137,7 +135,7 @@ export class FixedEnumCodec<const T extends FixedEnumGeneric> extends Codec<Enum
 		// Zero the full payload region so smaller variants are padded.
 		target.fill(0, payloadOffset, payloadOffset + this.maxVariantSize);
 		this.variants[value.kind]!.encodeInto(value.value as never, target, payloadOffset);
-		return this.stride.size;
+		return [target, this.stride.size];
 	}
 
 	/**

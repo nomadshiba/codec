@@ -106,8 +106,7 @@ export abstract class Codec<O extends I = any, I = O> {
 	 * @returns A new `Uint8Array` (allocating mode) or the number of bytes
 	 *   written (in-place mode).
 	 */
-	public abstract encoder(value: I, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public abstract encoder(value: I, target: Uint8Array, offset: number): number;
+	public abstract encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: I, target?: TU, offset?: number): [TU, number];
 
 	/**
 	 * Core decoding primitive. Subclasses implement this instead of a
@@ -133,7 +132,8 @@ export abstract class Codec<O extends I = any, I = O> {
 	 * // buf => Uint8Array [0xDE, 0xAD, 0xBE, 0xEF]
 	 */
 	public encode(value: I): Uint8Array<ArrayBuffer> {
-		return this.encoder(value, undefined, undefined);
+		const [bytes] = this.encoder(value);
+		return bytes;
 	}
 
 	/**
@@ -151,7 +151,8 @@ export abstract class Codec<O extends I = any, I = O> {
 	 * // written => 4, buf => Uint8Array [0xDE, 0xAD, 0xBE, 0xEF]
 	 */
 	public encodeInto(value: I, target: Uint8Array, offset: number = 0): number {
-		return this.encoder(value, target, offset);
+		const [, size] = this.encoder(value, target, offset);
+		return size;
 	}
 
 	/**
@@ -283,10 +284,8 @@ export class TransformCodec<
 	 * @returns A new `Uint8Array` (allocating mode) or the number of bytes
 	 *   written (in-place mode) — see {@link Codec.encoder}.
 	 */
-	public override encoder(value: I, target: undefined, offset: undefined): Uint8Array<ArrayBuffer>;
-	public override encoder(value: I, target: Uint8Array, offset: number): number;
-	public override encoder(value: I, target?: Uint8Array, offset?: number): Uint8Array<ArrayBuffer> | number {
-		if (target === undefined) return this.inner.encoder(value, undefined, undefined);
+	public override encoder<TU extends Uint8Array = Uint8Array<ArrayBuffer>>(value: I, target?: TU, offset?: number): [TU, number] {
+		if (target === undefined) return this.inner.encoder(value);
 		return this.inner.encoder(value, target, offset!);
 	}
 
